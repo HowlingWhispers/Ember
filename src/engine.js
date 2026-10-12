@@ -95,7 +95,7 @@ export function cleanNarration(rawText) {
   const outerWrapped = text.startsWith('"') && text.endsWith('"') && text.length > 2;
   if (outerWrapped) {
     text = text.slice(1, -1).trim();
-    text = text.replace(/(^|[^\\p{L}\\p{N}])'([^'\\n]+(?:'[\\p{L}\\p{N}]+[^'\\n]*)?)'(?=$|[^\\p{L}\\p{N}])/gmu,
+    text = text.replace(/(^|[^\p{L}\p{N}])'((?:[\p{L}\p{N}]+'[\p{L}\p{N}]+|[^'\n])*)'(?=$|[^\p{L}\p{N}])/gmu,
       (_, prefix, spoken) => prefix + '"' + spoken + '"');
   }
   text = text.replace(/^[ \t]*(?:\*\*)?(?:NARRATOR\s*(?:\(\s*CONT(?:INUED)?\s*\))?|\[\s*NARRATOR\s*\]|PREVIEW OPENING)(?:\*\*)?\s*:\s*/gim, "");
