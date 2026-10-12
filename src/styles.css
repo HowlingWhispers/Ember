@@ -213,7 +213,7 @@ dialog::backdrop { background: rgba(0,0,0,.67); }
 /* Shy Coda peeks from the right edge, outside the reader and writing desk.
    Only half of the 48px tab is visible until hover/focus/tap. */
 .coda-dock { position: fixed; top: 51%; right: 0; bottom: auto; z-index: 8; width: 48px; height: 48px; display: flex; align-items: flex-end; justify-content: flex-end; transform: translateX(50%); transition: transform .2s ease; pointer-events: none; }
-.coda-dock:hover, .coda-dock:focus-within, .coda-dock.is-open { transform: translateX(0); }
+.coda-dock:hover, .coda-dock:has(.coda-orb:focus-visible), .coda-dock.is-open { transform: translateX(0); }
 .coda-dock > * { pointer-events: auto; }
 .coda-orb { width: 48px; height: 48px; flex: 0 0 48px; justify-content: center; border: 1px solid var(--gold); border-right: 0; background: var(--paper-warm); color: var(--text); box-shadow: 0 7px 22px var(--shadow), 0 0 23px color-mix(in srgb, #79cdeb, transparent 74%); border-radius: 999px 0 0 999px; padding: 8px 6px 8px 9px; display: flex; gap: 0; align-items: center; font-size: 14px; }
 .coda-orb > span:first-child { font-size: 20px; }
