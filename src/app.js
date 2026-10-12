@@ -80,10 +80,12 @@ root.innerHTML = `
               <button type="button" class="primary" id="sendButton">Send <span aria-hidden="true">➜</span></button>
             </div>
           </div>
-          <div id="narrationStatus" class="narration-status" role="status" aria-live="polite"></div>
-          <div id="narrationError" class="narration-error" role="status" hidden>
-            <span id="narrationErrorText"></span>
-            <button id="retryNarration" type="button" class="chip-button">Retry reply</button>
+          <div class="narration-feedback">
+            <div id="narrationStatus" class="narration-status" role="status" aria-live="polite"></div>
+            <div id="narrationError" class="narration-error" role="status" hidden>
+              <span id="narrationErrorText"></span>
+              <button id="retryNarration" type="button" class="chip-button">Retry reply</button>
+            </div>
           </div>
         </section>
       </main>
@@ -430,18 +432,37 @@ $("#fontControl").addEventListener("input", event => {
   fontSize = Math.min(26, Math.max(16, Number(event.target.value) || 20));
   setPreference("font", String(fontSize)); updateTheme();
 });
-$("#codaButton").addEventListener("click", () => {
+let codaIdleTimer;
+function setCodaOpen(open) {
   const bubble = $("#codaBubble");
-  bubble.hidden = !bubble.hidden;
-  $("#codaButton").setAttribute("aria-expanded", String(!bubble.hidden));
-  // Play only on a direct click, not on each generation or automatic popup.
-  if (!bubble.hidden) void testCodaSound();
+  bubble.hidden = !open;
+  $(".coda-dock").classList.toggle("is-open", open);
+  $("#codaButton").setAttribute("aria-expanded", String(open));
+  clearTimeout(codaIdleTimer);
+  if (open) codaIdleTimer = setTimeout(() => {
+    // Never close while the user is actively reading or using the popup.
+    if (!$(".coda-dock").matches(":hover") && !bubble.contains(document.activeElement)) {
+      setCodaOpen(false);
+    }
+  }, 20000);
+}
+$("#codaButton").addEventListener("click", () => {
+  const open = $("#codaBubble").hidden;
+  setCodaOpen(open);
+  // Only a user-initiated opening plays audio. No automatic interruptions.
+  if (open) void testCodaSound();
 });
-$("#codaDismiss").addEventListener("click", () => {
-  $("#codaBubble").hidden = true;
-  $("#codaButton").setAttribute("aria-expanded", "false");
+$("#codaDismiss").addEventListener("click", () => setCodaOpen(false));
+$("#codaSoundSettings").addEventListener("click", () => {
+  setCodaOpen(false);
+  openDialog("#styleDialog");
 });
-$("#codaSoundSettings").addEventListener("click", () => openDialog("#styleDialog"));
+document.addEventListener("pointerdown", event => {
+  if (!$("#codaBubble").hidden && !$(".coda-dock").contains(event.target)) setCodaOpen(false);
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && !$("#codaBubble").hidden) setCodaOpen(false);
+});
 root.querySelectorAll('input[name="codaSound"]').forEach(input => input.addEventListener("change", () => {
   soundSettings.mode = input.value;
   saveSoundSettings();
