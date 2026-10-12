@@ -316,7 +316,7 @@ function render() {
     el.className = `turn ${turn.mode === "narrator" ? "narrator" : "player"} ${turn.mode}`;
     const label = document.createElement("div");
     label.className = "turn-label";
-    label.textContent = turn.mode === "narrator" ? "PREVIEW OPENING" : `YOU · ${turn.mode.toUpperCase()}`;
+    label.textContent = turn.mode === "narrator" ? (turn.source === "provider" ? "STORY" : "PREVIEW OPENING") : `YOU · ${turn.mode.toUpperCase()}`;
     const prose = document.createElement("p");
     prose.className = "turn-prose";
     prose.textContent = turn.text;
