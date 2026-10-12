@@ -17,3 +17,13 @@ test("persisted provider narration has no scaffolding", () => {
   const next = addNarratorTurn(story, story.turns.at(-1).id, 'NARRATOR (CONT): The leaves rustle.');
   assert.equal(next.turns.at(-1).text, "The leaves rustle.");
 });
+
+test("normalizes single-quoted speech inside double-wrapped prose, retaining contractions", () => {
+  const raw = `"She approaches. 'You don't look like you're from here,' she says. 'Name's Lyra,' she adds."`;
+  assert.equal(cleanNarration(raw), `She approaches. "You don't look like you're from here," she says. "Name's Lyra," she adds.`);
+});
+
+test("leaves apostrophes and unwrapped intentional quotations alone", () => {
+  assert.equal(cleanNarration("It's Lyra's spear."), "It's Lyra's spear.");
+  assert.equal(cleanNarration("She says, 'Hello,' before leaving."), "She says, 'Hello,' before leaving.");
+});
