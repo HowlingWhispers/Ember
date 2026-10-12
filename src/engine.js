@@ -89,9 +89,14 @@ export function addPlayerTurn(state, mode, rawText) {
 export function cleanNarration(rawText) {
   if (typeof rawText !== "string") return rawText;
   let text = rawText.replace(/\r\n?/g, "\n").trim();
-  // Some providers quote the entire response as one document.
-  if (text.startsWith('"') && text.endsWith('"') && text.length > 2) {
+  // Correct a specific provider failure: outer double-quoted prose with
+  // single-quoted dialogue. Only normalize when the response is fully wrapped,
+  // and avoid treating apostrophes inside words as quote delimiters.
+  const outerWrapped = text.startsWith('"') && text.endsWith('"') && text.length > 2;
+  if (outerWrapped) {
     text = text.slice(1, -1).trim();
+    text = text.replace(/(^|[^\\p{L}\\p{N}])'([^'\\n]+(?:'[\\p{L}\\p{N}]+[^'\\n]*)?)'(?=$|[^\\p{L}\\p{N}])/gmu,
+      (_, prefix, spoken) => prefix + '"' + spoken + '"');
   }
   text = text.replace(/^[ \t]*(?:\*\*)?(?:NARRATOR\s*(?:\(\s*CONT(?:INUED)?\s*\))?|\[\s*NARRATOR\s*\]|PREVIEW OPENING)(?:\*\*)?\s*:\s*/gim, "");
   text = text.replace(/\n{3,}/g, "\n\n");
