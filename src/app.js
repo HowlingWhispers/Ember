@@ -1,7 +1,10 @@
-import { createStory, addPlayerTurn, addJournalNote, advanceTime, formatClock, MAX_INPUT } from "./engine.js";
-import { loadStory, persistStory, getPreference, setPreference, importStory, exportStory } from "./storage.js";
+import { createStory, createStoryFromLaunch, addPlayerTurn, addJournalNote, advanceTime, formatClock, MAX_INPUT } from "./engine.js";
+import { configureStoryScope, loadStory, persistStory, getPreference, setPreference, importStory, exportStory } from "./storage.js";
 
 const root = document.querySelector("#app");
+const liveSession = globalThis.__EMBER_SESSION__ ?? null;
+if (liveSession) configureStoryScope(liveSession);
+document.documentElement.dataset.emberMode = liveSession?.mode ?? "preview";
 let { state, error: loadError } = loadStory();
 let activeTab = "here";
 let mode = "action";
@@ -37,9 +40,9 @@ root.innerHTML = `
         <div class="story-scroll" id="storyScroll">
           <div class="story-inner">
             <div class="chapter-heading">
-              <div class="eyebrow"><span class="ornament">✧</span> YOUR ADVENTURE <span class="ornament">✧</span></div>
+              <div class="eyebrow"><span class="ornament">✧</span> ${liveSession?.mode === "character" ? "CHARACTER ROLEPLAY" : "YOUR ADVENTURE"} <span class="ornament">✧</span></div>
               <h1 id="storyTitle"></h1>
-              <p class="scene-subtitle">A place for your story to unfold, without mandatory paths.</p>
+              <p class="scene-subtitle">${liveSession?.mode === "character" ? "A conversation led only by your imagination." : "A place for your story to unfold, without mandatory paths."}</p>
             </div>
             <div class="notice" id="previewNotice" role="note"><strong>Offline concept preview.</strong> Your writing is saved locally. NovelAI, Orbis, and world simulation are not connected; no AI narration or canonical events are being generated.</div>
             <div id="storyTurns" class="story-turns" aria-live="polite"></div>
@@ -150,7 +153,11 @@ function render() {
   $("#saveStatus").textContent = disabled ? "● Recovery needed" : "● Saved locally";
   $("#previewNotice").innerHTML = disabled
     ? `<strong>Save recovery needed.</strong> ${safe(loadError)} Use "Open saved file" to restore a backup, or "New story" after preserving the damaged browser data if needed.`
-    : '<strong>Offline concept preview.</strong> Your writing is saved locally. NovelAI, Orbis, and world simulation are not connected; no AI narration or canonical events are being generated.';
+    : liveSession?.mode === "character"
+      ? `<strong>Orbis character selected:</strong> ${safe(liveSession.asset.name)}. Your conversation is saved locally. NovelAI narration is not connected yet. No quests, travel or world simulation in this mode.`
+      : liveSession?.mode === "world"
+        ? `<strong>Orbis world selected:</strong> ${safe(liveSession.asset.name)}. Your adventure is freeform; writing is saved locally. NovelAI, travel, quests and world simulation are not connected yet.`
+        : '<strong>Offline concept preview.</strong> Your writing is saved locally. NovelAI, Orbis, and world simulation are not connected; no AI narration or canonical events are being generated.';
   $("#storyTurns").replaceChildren();
   if (state) for (const turn of state.turns) {
     const el = document.createElement("article");
@@ -181,14 +188,13 @@ function railMarkup() {
     <div class="panel-kicker">PLACES &amp; ROUTES</div><h2>Where the world leads</h2>
     <p class="muted">These are known <em>design references</em>, not player discoveries or confirmed travel links.</p>
     <div class="place-entry current"><span>⌖</span><div><strong>${safe(w.location)}</strong><small>Current preview location</small></div></div>
-    <div class="place-entry"><span>◇</span><div><strong>Hollowmere</strong><small>Reference only · no route loaded</small></div></div>
-    <div class="place-entry"><span>◇</span><div><strong>Brackenjaw Enclave</strong><small>Reference only · no route loaded</small></div></div>
+    ${liveSession ? '<div class="empty-panel small">Canonical travel routes have not been loaded from Orbis.</div>' : '<div class="place-entry"><span>◇</span><div><strong>Hollowmere</strong><small>Reference only · no route loaded</small></div></div><div class="place-entry"><span>◇</span><div><strong>Brackenjaw Enclave</strong><small>Reference only · no route loaded</small></div></div>'}
     <button type="button" class="rail-action" data-rail-action="go">Go somewhere <span>→</span></button>
   `;
   if (activeTab === "people") return `
     <div class="panel-kicker">PEOPLE</div><h2>Faces in the world</h2>
     <p class="muted">Character presence, relationships and player knowledge will come from validated story state.</p>
-    <div class="person-entry"><span class="avatar">RH</span><div><strong>Ragna Holt</strong><small>Design reference · presence unknown</small></div></div>
+    ${liveSession ? '' : '<div class="person-entry"><span class="avatar">RH</span><div><strong>Ragna Holt</strong><small>Design reference · presence unknown</small></div></div>'}
     <div class="empty-panel small"><p>No live cast or relationship data yet.</p></div>
   `;
   if (activeTab === "journal") return `
@@ -307,7 +313,7 @@ $("#newButton").addEventListener("click", () => {
     : "Create a new story? Export the current story first if you want to keep it.";
   if (!window.confirm(warning)) return;
   try {
-    const fresh = createStory();
+    const fresh = liveSession ? createStoryFromLaunch(liveSession) : createStory();
     persistStory(fresh);
     state = fresh;
     loadError = "";
@@ -328,3 +334,20 @@ document.addEventListener("keydown", event => { if (event.key === "Escape") { cl
 updateTheme();
 render();
 if (loadError) toast(loadError);
+// An Ember tab must stop showing private material when its Orbis session ends.
+if (liveSession) {
+  const verifyActiveSession = async () => {
+    try {
+      const response = await fetch('/ember/api/session', { credentials: 'same-origin', cache: 'no-store' });
+      if (!response.ok) throw new Error('Session expired');
+      const current = await response.json();
+      if (current.userId !== liveSession.userId || current.mode !== liveSession.mode
+        || current.asset?.id !== liveSession.asset.id) throw new Error('Session changed');
+    } catch {
+      root.replaceChildren();
+      root.innerHTML = '<div class="signed-out"><h1>Orbis session ended</h1><p>Your local story remains saved for your account. Return to Orbis and select a character or world to continue.</p><a href="https://lib.thehowlingwhispers.com/">Return to Orbis</a></div>';
+    }
+  };
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) void verifyActiveSession(); });
+  window.setInterval(() => void verifyActiveSession(), 30_000);
+}

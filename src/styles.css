@@ -201,4 +201,15 @@ dialog::backdrop { background: rgba(0,0,0,.67); }
   .mode-switch button { padding: 7px 10px; }
   .composer textarea { min-height: 70px; }
 }
+:root[data-ember-mode="character"] .layout { grid-template-columns: minmax(0, 1fr); }
+:root[data-ember-mode="character"] .world-rail,
+:root[data-ember-mode="character"] .rail-scrim,
+:root[data-ember-mode="character"] .mobile-world,
+:root[data-ember-mode="character"] #goButton,
+:root[data-ember-mode="character"] #waitButton,
+:root[data-ember-mode="character"] #passButton { display: none !important; }
+:root[data-ember-mode="character"] .world-clock { display: none; }
+:root[data-ember-mode="character"] .story-inner { max-width: 840px; }
+.signed-out { max-width: 600px; padding: 48px 24px; margin: 10vh auto; color: var(--text); }
+.signed-out a { color: var(--gold); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; } }

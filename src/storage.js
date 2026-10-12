@@ -1,18 +1,39 @@
-import { createStory, validateStory } from "./engine.js";
+import { createStory, createStoryFromLaunch, validateStory } from "./engine.js";
 
 const KEY = "hw:ember:story:v1";
+let activeKey = KEY;
+let sessionContext = null;
+export function configureStoryScope(session) {
+  if (!session || !session.asset || !["character","world"].includes(session.mode)
+    || typeof session.userId !== "string" || typeof session.asset.id !== "string"
+    || !/^[0-9a-f-]{36}$/i.test(session.userId)
+    || !/^[0-9a-f-]{36}$/i.test(session.asset.id)) throw new Error("Invalid Orbis story scope");
+  sessionContext = session;
+  activeKey = `${KEY}:${session.userId}:${session.mode}:${session.asset.id}`;
+}
+function checkStoryBinding(story) {
+  const valid = validateStory(story);
+  if (sessionContext) {
+    if (valid.launch?.userId !== sessionContext.userId
+      || valid.launch?.assetId !== sessionContext.asset.id
+      || valid.launch?.mode !== sessionContext.mode) throw new Error("This save belongs to a different Orbis account or launch");
+  } else if (valid.launch) {
+    throw new Error("An Orbis-bound save cannot be opened in offline preview");
+  }
+  return valid;
+}
 const THEME_KEY = "hw:ember:theme:v1";
 const FONT_KEY = "hw:ember:font:v1";
 
 export function loadStory() {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(activeKey);
     if (!raw) {
-      const fresh = createStory();
+      const fresh = sessionContext ? createStoryFromLaunch(sessionContext) : createStory();
       persistStory(fresh);
       return { state: fresh, error: "" };
     }
-    return { state: validateStory(JSON.parse(raw)), error: "" };
+    return { state: checkStoryBinding(JSON.parse(raw)), error: "" };
   } catch {
     // Fail closed: never overwrite or silently discard the unreadable saved story.
     return { state: null, error: "The local save could not be read. Export or inspect the browser's local storage before resetting." };
@@ -20,11 +41,11 @@ export function loadStory() {
 }
 
 export function persistStory(state) {
-  localStorage.setItem(KEY, JSON.stringify(validateStory(state)));
+  localStorage.setItem(activeKey, JSON.stringify(checkStoryBinding(state)));
 }
 
 export function clearStory() {
-  localStorage.removeItem(KEY);
+  localStorage.removeItem(activeKey);
 }
 
 export function getPreference(name, fallback) {
@@ -39,9 +60,9 @@ export function setPreference(name, value) {
 
 export function importStory(text) {
   if (text.length > 2_000_000) throw new Error("Save file is too large");
-  return validateStory(JSON.parse(text));
+  return checkStoryBinding(JSON.parse(text));
 }
 
 export function exportStory(state) {
-  return JSON.stringify(validateStory(state), null, 2);
+  return JSON.stringify(checkStoryBinding(state), null, 2);
 }

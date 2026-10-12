@@ -20,6 +20,33 @@ export function createStory() {
   };
 }
 
+/**
+ * A validated Orbis launch chooses the story mode. This is a UI state seed, not
+ * AI narration or a substitute for the missing world-simulation engine.
+ */
+export function createStoryFromLaunch(session) {
+  if (!session || !["world", "character"].includes(session.mode)
+      || !session.asset || session.asset.type !== session.mode
+      || typeof session.asset.name !== "string") throw new Error("Invalid Orbis launch context");
+  const story = createStory();
+  const title = session.mode === "character" ? `Roleplay with ${session.asset.name}` : session.asset.name;
+  return {
+    ...story,
+    title,
+    launch: { userId: session.userId, assetId: session.asset.id, mode: session.mode },
+    world: {
+      ...story.world, name: session.mode === "world" ? session.asset.name : "Character roleplay",
+      location: session.mode === "world" ? "Starting place not selected" : "One-on-one roleplay",
+      season: "Not simulated", weather: "Not simulated", source: "orbis",
+    },
+    turns: [{
+      ...story.turns[0], text: session.mode === "character"
+        ? `${session.asset.name} was selected from Orbis. This is a standard, freeform character conversation. NovelAI is not connected yet.`
+        : `${session.asset.name} was selected from Orbis. Your adventure is freeform. NovelAI and living-world simulation are not connected yet.`
+    }]
+  };
+}
+
 export function formatClock(world) {
   const hour = Math.floor(world.minute / 60);
   const minute = world.minute % 60;
@@ -66,6 +93,13 @@ export function addJournalNote(state, rawText) {
 export function validateStory(data) {
   if (!data || typeof data !== "object" || Array.isArray(data) || data.schema !== STORY_SCHEMA) throw new Error("Unsupported or invalid Ember save format");
   if (!isText(data.id, 160) || !data.id || !isText(data.title, 200) || !Number.isSafeInteger(data.revision) || data.revision < 0) throw new Error("Invalid story metadata");
+  if (data.launch !== undefined) {
+    const link = data.launch;
+    if (!link || typeof link !== "object" || Array.isArray(link)
+      || !isText(link.userId, 160) || !link.userId
+      || !isText(link.assetId, 160) || !link.assetId
+      || !["character", "world"].includes(link.mode)) throw new Error("Invalid Orbis launch binding");
+  }
   const w = data.world;
   if (!w || !isText(w.name, 200) || !isText(w.location, 200) || !isText(w.season, 100) || !isText(w.weather, 100) || w.source !== "preview" && w.source !== "orbis" || !Number.isSafeInteger(w.day) || w.day < 1 || !Number.isInteger(w.minute) || w.minute < 0 || w.minute >= minutesPerDay) throw new Error("Invalid world data");
   if (!Array.isArray(data.turns) || data.turns.length > MAX_TURNS || !data.turns.every(t => t && isText(t.id, 160) && t.id && isText(t.text, MAX_INPUT * 4) && ["narrator", ...allowedModes].includes(t.mode) && ["player", "preview", "provider"].includes(t.source))) throw new Error("Invalid story turns");
