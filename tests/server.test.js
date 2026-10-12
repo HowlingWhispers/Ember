@@ -46,7 +46,7 @@ async function fixture(mode = 'character') {
 }
 test('Ember denies the browser shell and files without a current Orbis handoff', async t => {
   const app = await fixture(); t.after(()=>app.close());
-  for (const path of ['/ember/','/ember/src/app.js','/ember/api/session']) {
+  for (const path of ['/ember/','/ember/src/app.js','/ember/assets/sounds/hey-listen.mp3','/ember/api/session']) {
     const r = await fetch(app.base+path);
     assert.equal(r.status,401,path);
   }
@@ -75,6 +75,13 @@ test('creates an HttpOnly scoped cookie and serves distinct character launch', a
   assert.equal(html.status,200);
   assert.match(await html.text(),/bootstrap\.js/);
   assert.equal((await fetch(app.base+'/ember/.git/config',{headers:authHeaders})).status,404);
+  const audio = await fetch(app.base+'/ember/assets/sounds/hey-listen.mp3',{headers:authHeaders});
+  assert.equal(audio.status,200);
+  assert.equal(audio.headers.get('content-type'),'audio/mpeg');
+  const bytes = new Uint8Array(await audio.arrayBuffer());
+  assert.ok(bytes.length > 4000);
+  assert.deepEqual([...bytes.slice(0,3)],[73,68,51]); // ID3 header
+  assert.match(html.headers.get('content-security-policy'),/media-src 'self' blob:/);
   assert.equal((await app.postLaunch()).status,401,'Replay rejected by Orbis');
 });
 test('revocation of Orbis session immediately blocks existing Ember cookie', async t=>{

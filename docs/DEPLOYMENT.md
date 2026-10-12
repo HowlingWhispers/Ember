@@ -69,7 +69,9 @@ and redirects to `/ember/`.
 ## 4. Verify before reopening the application
 
 - Direct anonymous `GET /ember/` returns a sign-in-through-Orbis page, not private content.
-- Anonymous `GET /ember/src/app.js` is denied.
+- Anonymous `GET /ember/src/app.js` and `GET /ember/assets/sounds/hey-listen.mp3` are denied.
+- Authenticated `GET /ember/assets/sounds/hey-listen.mp3` returns MP3 bytes with `audio/mpeg`; the app CSP allows `media-src 'self' blob:`.
+- Coda's Hey! Listen! clip can be selected and tested; only locally uploaded user ringtones stay in IndexedDB.
 - Orbis Character button launches `mode=character`, without travel and quest controls.
 - Orbis World button launches `mode=world`, with the optional world rail.
 - A ticket cannot be redeemed twice and never appears in the URL.

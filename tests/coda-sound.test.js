@@ -7,9 +7,11 @@ import {
 
 const alice = "11111111-1111-4111-8111-111111111111";
 const bob = "22222222-2222-4222-8222-222222222222";
-test("built-in Coda alert defaults to a distinct synthesized chime", () => {
-  assert.equal(DEFAULT_SOUND.mode, "coda");
+test("uploaded Hey Listen clip is the default alert, with Coda original available", () => {
+  assert.equal(DEFAULT_SOUND.mode, "hey-listen");
   assert.ok(DEFAULT_SOUND.volume > 0);
+  assert.equal(normalizeSoundPreferences({mode:"coda"}).mode,"coda");
+  assert.equal(normalizeSoundPreferences({mode:"hey-listen"}).mode,"hey-listen");
 });
 test("normalizes corrupt modes and clamps volume", () => {
   assert.deepEqual(normalizeSoundPreferences({ mode: "navi", volume: 200, customName: "x" }), {
@@ -26,7 +28,7 @@ test("stores ringtone selections separately for Orbis accounts", () => {
   storeSoundPreferences(alice,{mode:"custom",volume:.32,customName:"ring.ogg"},storage);
   assert.equal(readSoundPreferences(alice,storage).mode,"custom");
   assert.equal(readSoundPreferences(alice,storage).customName,"ring.ogg");
-  assert.equal(readSoundPreferences(bob,storage).mode,"coda");
+  assert.equal(readSoundPreferences(bob,storage).mode,"hey-listen");
   assert.equal(map.size,1);
 });
 test("corrupted settings safely reset to defaults", () => {

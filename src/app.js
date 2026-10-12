@@ -111,7 +111,8 @@ root.innerHTML = `
     <label for="fontControl" class="setting-label">Story text size <output id="fontOutput"></output></label><input type="range" id="fontControl" min="16" max="26" step="1">
     <fieldset class="sound-options">
       <legend>Coda's Hey! Listen! alert</legend>
-      <p class="muted">Choose the chime you hear when Coda has a discovery. No story listening is active yet.</p>
+      <p class="muted">Choose the sound you hear when Coda has a discovery. No story listening is active yet.</p>
+      <label><input type="radio" name="codaSound" value="hey-listen"> Hey! Listen! (uploaded classic clip)</label>
       <label><input type="radio" name="codaSound" value="coda"> Coda's original chime</label>
       <label><input type="radio" name="codaSound" value="custom"> My own ringtone (MP3, WAV or OGG)</label>
       <label><input type="radio" name="codaSound" value="silent"> Silent notification</label>
@@ -123,7 +124,7 @@ root.innerHTML = `
       <label class="setting-label" for="codaVolume">Volume <output id="codaVolumeValue"></output></label>
       <input type="range" id="codaVolume" min="0" max="100" step="5">
       <button type="button" id="codaTestButton" class="chip-button">▶ Test sound</button>
-      <p class="muted">Custom files stay in this browser on this device, scoped to your Orbis account.</p>
+      <p class="muted">Custom files stay in this browser on this device, scoped to your Orbis account. The built-in clip is bundled with Ember.</p>
     </fieldset>
     <div class="sheet-foot"><button class="primary" type="submit">Done</button></div>
   </form></dialog>

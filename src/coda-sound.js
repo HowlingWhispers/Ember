@@ -9,8 +9,8 @@ const PREF_PREFIX = "hw:ember:coda-sound:v1:";
 const DB_NAME = "hw:ember:personal-audio";
 const DB_STORE = "ringtones";
 export const MAX_RINGTONE_BYTES = 2_000_000;
-export const CODA_SOUND_MODES = Object.freeze(["coda", "custom", "silent"]);
-export const DEFAULT_SOUND = Object.freeze({ mode: "coda", volume: 0.6, customName: "" });
+export const CODA_SOUND_MODES = Object.freeze(["hey-listen", "coda", "custom", "silent"]);
+export const DEFAULT_SOUND = Object.freeze({ mode: "hey-listen", volume: 0.6, customName: "" });
 
 export function soundScope(userId) {
   return typeof userId === "string" && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(userId)
@@ -142,6 +142,30 @@ export async function playOriginalCodaChime(volume = DEFAULT_SOUND.volume) {
   }
 }
 
+/**
+ * Built-in uploaded alert and user-chosen clips share one safe audio path.
+ * Resolve the bundled clip relative to this module so both /ember/ and the
+ * localhost offline preview serve it correctly.
+ */
+export const HEY_LISTEN_CLIP = new URL("../assets/sounds/hey-listen.mp3", import.meta.url).href;
+async function playAudioUrl(url, volume, revokeObjectUrl = false) {
+  const audio = new Audio(url);
+  audio.volume = volume;
+  try {
+    const ended = new Promise((resolve, reject) => {
+      audio.addEventListener("ended", resolve, { once: true });
+      audio.addEventListener("error", () => reject(new Error("This audio file could not be played.")), { once: true });
+    });
+    await audio.play();
+    await ended;
+  } finally {
+    audio.pause();
+    audio.removeAttribute("src");
+    audio.load();
+    if (revokeObjectUrl) URL.revokeObjectURL(url);
+  }
+}
+
 export async function playCodaSound(settings, userId) {
   const sound = normalizeSoundPreferences(settings);
   if (sound.mode === "silent" || sound.volume === 0) return "silent";
@@ -149,25 +173,13 @@ export async function playCodaSound(settings, userId) {
     await playOriginalCodaChime(sound.volume);
     return "coda";
   }
-  const stored = await readCustomRingtone(userId);
-  if (!stored) throw new Error("Choose a custom ringtone first, or switch to Coda's Chime.");
-  const url = URL.createObjectURL(stored.blob);
-  const audio = new Audio(url);
-  audio.volume = sound.volume;
-  try {
-    // Register end/error listeners before play() so a short clip cannot finish
-    // before its playback promise settles.
-    const ended = new Promise((resolve, reject) => {
-      audio.addEventListener("ended", resolve, { once: true });
-      audio.addEventListener("error", () => reject(new Error("This audio file could not be played.")), { once: true });
-    });
-    await audio.play();
-    await ended;
-    return "custom";
-  } finally {
-    audio.pause();
-    audio.removeAttribute("src");
-    audio.load();
-    URL.revokeObjectURL(url);
+  if (sound.mode === "hey-listen") {
+    await playAudioUrl(HEY_LISTEN_CLIP, sound.volume);
+    return "hey-listen";
   }
+  const stored = await readCustomRingtone(userId);
+  if (!stored) throw new Error("Choose a custom ringtone first, or switch to a built-in Coda sound.");
+  const url = URL.createObjectURL(stored.blob);
+  await playAudioUrl(url, sound.volume, true);
+  return "custom";
 }

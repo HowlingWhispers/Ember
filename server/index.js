@@ -20,6 +20,7 @@ const ALLOWED_FILES = new Map([
   ['/ember/src/engine.js', ['src/engine.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/storage.js', ['src/storage.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/coda-sound.js', ['src/coda-sound.js', 'text/javascript; charset=utf-8']],
+  ['/ember/assets/sounds/hey-listen.mp3', ['assets/sounds/hey-listen.mp3', 'audio/mpeg']],
   ['/ember/src/styles.css', ['src/styles.css', 'text/css; charset=utf-8']],
 ]);
 const sha = (text) => createHash('sha256').update(text).digest('hex');
@@ -31,7 +32,7 @@ function securityHeaders(response) {
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('Referrer-Policy', 'no-referrer');
   response.setHeader('X-Frame-Options', 'DENY');
-  response.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+  response.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; media-src 'self' blob:; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
 }
 
 function respond(response, status, data, type = 'application/json; charset=utf-8') {
