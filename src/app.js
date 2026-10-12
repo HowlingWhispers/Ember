@@ -1,4 +1,4 @@
-import { createStory, createStoryFromLaunch, addPlayerTurn, addJournalNote, advanceTime, formatClock, MAX_INPUT } from "./engine.js";
+import { createStory, createStoryFromLaunch, addPlayerTurn, addNarratorTurn, addJournalNote, advanceTime, formatClock, MAX_INPUT } from "./engine.js";
 import { configureStoryScope, loadStory, persistStory, getPreference, setPreference, importStory, exportStory } from "./storage.js";
 import {
   readSoundPreferences, storeSoundPreferences, saveCustomRingtone,
@@ -18,6 +18,8 @@ let railOpen = false;
 const soundUserId = liveSession?.userId;
 let soundSettings = readSoundPreferences(soundUserId);
 let soundBusy = false;
+let narrationBusy = false;
+let narrationError = "";
 const modes = ["action", "speech", "thought"];
 const tabs = ["here", "places", "people", "journal", "almanac"];
 const safe = value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
@@ -73,10 +75,15 @@ root.innerHTML = `
             <label class="visually-hidden" for="playerInput">Your freeform roleplay</label>
             <textarea id="playerInput" rows="3" maxlength="${MAX_INPUT}" placeholder="What do you do, say, or think?"></textarea>
             <div class="composer-footer">
-              <span class="composer-hint" id="composeHint">Your words are recorded. Narration requires a provider connection.</span>
+              <span class="composer-hint" id="composeHint">Your words are recorded locally.</span>
               <span class="input-count" id="inputCount">0 / ${MAX_INPUT}</span>
-              <button type="button" class="primary" id="sendButton">Add to story <span aria-hidden="true">➜</span></button>
+              <button type="button" class="primary" id="sendButton">Send <span aria-hidden="true">➜</span></button>
             </div>
+          </div>
+          <div id="narrationStatus" class="narration-status" role="status" aria-live="polite"></div>
+          <div id="narrationError" class="narration-error" role="alert" hidden>
+            <span id="narrationErrorText"></span>
+            <button id="retryNarration" type="button" class="chip-button">Retry reply</button>
           </div>
         </section>
       </main>
@@ -211,11 +218,63 @@ function setStory(next) {
   loadError = "";
   render();
 }
+function renderNarrationState() {
+  const live = Boolean(liveSession);
+  const last = state?.turns.at(-1);
+  const canRetry = live && !narrationBusy && last?.source === "player";
+  $("#sendButton").disabled = !state || narrationBusy || (canRetry && !$("#playerInput").value.trim());
+  $("#sendButton").innerHTML = narrationBusy ? "Generating…" : live ? "Send to NovelAI ➜" : "Add to story ➜";
+  $("#passButton").disabled = true;
+  $("#playerInput").disabled = !state || narrationBusy;
+  $("#composeHint").textContent = !live
+    ? "Offline preview: saves your words but cannot generate narration."
+    : narrationBusy ? "NovelAI is writing the next moment…"
+    : canRetry ? "Last message is saved. Retry its response, or write another message."
+    : "NovelAI uses the key already saved in your Orbis account.";
+  $("#narrationStatus").textContent = narrationBusy ? "✧ Awaiting NovelAI's reply…" : "";
+  $("#narrationError").hidden = !narrationError;
+  $("#narrationErrorText").textContent = narrationError;
+  $("#retryNarration").disabled = !canRetry;
+}
+async function generateLastTurn() {
+  if (!liveSession || narrationBusy || !state) return;
+  const last = state.turns.at(-1);
+  if (!last || last.source !== "player") return;
+  const expectedStoryId = state.id;
+  const expectedRevision = state.revision;
+  narrationBusy = true;
+  narrationError = "";
+  renderNarrationState();
+  try {
+    const turns = state.turns
+      .filter(turn => turn.source === "player" || turn.source === "provider")
+      .slice(-48)
+      .map(turn => ({ mode: turn.mode, source: turn.source, text: turn.text }));
+    const response = await fetch("/ember/api/generate",{
+      method: "POST", credentials: "same-origin", cache: "no-store",
+      headers: { "Content-Type":"application/json", "X-Ember-Request":"generation" },
+      body: JSON.stringify({ turns }),
+    });
+    let result = {};
+    try { result = await response.json(); } catch { /* gateway error */ }
+    if (!response.ok || typeof result.text !== "string") {
+      throw new Error(result.error || `Narration failed (HTTP ${response.status}).`);
+    }
+    if (!state || state.id !== expectedStoryId || state.revision !== expectedRevision) {
+      throw new Error("Story changed during generation. Reply was not attached.");
+    }
+    setStory(addNarratorTurn(state, last.id, result.text));
+    $("#storyScroll").scrollTop = $("#storyScroll").scrollHeight;
+  } catch (err) {
+    narrationError = err instanceof Error ? err.message : "NovelAI failed. Retry the last turn.";
+  } finally {
+    narrationBusy = false;
+    renderNarrationState();
+  }
+}
 function render() {
   const disabled = !state;
-  $("#sendButton").disabled = disabled;
-  $("#waitButton").disabled = disabled;
-  $("#playerInput").disabled = disabled;
+  $("#waitButton").disabled = disabled || narrationBusy;
   $("#worldName").textContent = state?.world.name ?? "Unreadable save";
   $("#locationName").textContent = state?.world.location ?? "Local story could not be restored";
   $("#clock").textContent = state ? formatClock(state.world) : "Time unavailable";
@@ -224,12 +283,12 @@ function render() {
   $("#previewNotice").innerHTML = disabled
     ? `<strong>Save recovery needed.</strong> ${safe(loadError)} Use "Open saved file" to restore a backup, or "New story" after preserving the damaged browser data if needed.`
     : liveSession?.mode === "sandbox"
-      ? '<strong>Free Sandbox.</strong> Start writing anywhere, with no package, predefined characters, or world required. Your words are saved privately on this device. NovelAI generation is not connected to Ember yet.'
+      ? '<strong>Free Sandbox.</strong> No package or preset world is required. Type a message and NovelAI will continue using your Orbis account settings.'
       : liveSession?.mode === "character"
-        ? `<strong>Orbis character selected:</strong> ${safe(liveSession.asset.name)}. Your conversation is saved locally. NovelAI narration is not connected yet. No quests, travel or world simulation in this mode.`
+        ? `<strong>Character roleplay:</strong> ${safe(liveSession.asset.name)}. Your conversation is saved locally, with narration from your Orbis NovelAI account.`
         : liveSession?.mode === "world"
-          ? `<strong>Orbis world selected:</strong> ${safe(liveSession.asset.name)}. Your adventure is freeform; writing is saved locally. NovelAI, travel, quests and world simulation are not connected yet.`
-          : '<strong>Offline concept preview.</strong> Your writing is saved locally. NovelAI, Orbis, and world simulation are not connected; no AI narration or canonical events are being generated.';
+          ? `<strong>World adventure:</strong> ${safe(liveSession.asset.name)}. Freeform roleplay powered by your Orbis NovelAI account. Travel and world-state simulation remain under development.`
+          : '<strong>Offline concept preview.</strong> Your writing is saved locally. Sign into Orbis and enter Ember online to generate NovelAI replies.';
   $("#storyTurns").replaceChildren();
   if (state) for (const turn of state.turns) {
     const el = document.createElement("article");
@@ -244,6 +303,7 @@ function render() {
     $("#storyTurns").append(el);
   }
   renderRail();
+  renderNarrationState();
 }
 function railMarkup() {
   if (!state) return '<div class="empty-panel"><h3>Story unavailable</h3><p>Restore a saved story to inspect its world.</p></div>';
@@ -291,22 +351,25 @@ function renderRail() {
 }
 
 $("#sendButton").addEventListener("click", () => {
-  if (!state) return;
+  if (!state || narrationBusy) return;
   try {
-    const text = $("#playerInput").value;
-    const next = addPlayerTurn(state, mode, text);
-    setStory(next);
+    const next = addPlayerTurn(state, mode, $("#playerInput").value);
+    narrationError = "";
     $("#playerInput").value = "";
     $("#inputCount").textContent = `0 / ${MAX_INPUT}`;
+    setStory(next);
     $("#storyScroll").scrollTop = $("#storyScroll").scrollHeight;
-    toast("Player turn saved locally. Narration is not connected.");
+    if (liveSession) void generateLastTurn();
+    else toast("Saved in offline preview. NovelAI is available through your Orbis login.");
   } catch (err) { toast(err.message); }
 });
+$("#retryNarration").addEventListener("click", () => void generateLastTurn());
 $("#playerInput").addEventListener("keydown", event => {
   if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); $("#sendButton").click(); }
 });
 $("#playerInput").addEventListener("input", () => {
   $("#inputCount").textContent = `${$("#playerInput").value.length} / ${MAX_INPUT}`;
+  renderNarrationState();
 });
 $("#modeSwitch").addEventListener("click", event => {
   const button = event.target.closest("[data-mode]");
@@ -416,6 +479,7 @@ $("#fileInput").addEventListener("change", async event => {
   const file = event.target.files?.[0];
   if (!file) return;
   try {
+    if (narrationBusy) throw new Error("Finish generation before importing a different story.");
     if (file.size > 2_000_000) throw new Error("Save file is too large");
     const next = importStory(await file.text());
     if (!window.confirm("Replace the currently open local story with this backup?")) return;
@@ -429,9 +493,11 @@ $("#newButton").addEventListener("click", () => {
   const warning = loadError
     ? "The current browser save is unreadable. A new story will overwrite it. Continue only if you no longer need to recover that data."
     : "Create a new story? Export the current story first if you want to keep it.";
+  if (narrationBusy) { toast("Wait until NovelAI finishes before starting another story."); return; }
   if (!window.confirm(warning)) return;
   try {
     const fresh = liveSession ? createStoryFromLaunch(liveSession) : createStory();
+    narrationError = "";
     persistStory(fresh);
     state = fresh;
     loadError = "";

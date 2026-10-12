@@ -34,7 +34,7 @@ Node.js 22+ is recommended. There are **no npm dependencies**. For live Orbis ha
 - **Ember** owns its own interface, local state, persistence, and future orchestration.
 - **Coda** currently has a *notification UI preview* and local ringtone controls, not a listening or canon-saving agent. Custom files are stored in browser IndexedDB, not in the repository or on the server.
 - The bundled `assets/sounds/hey-listen.mp3` is an optimized copy of an audio clip supplied by the project owner, who describes it as royalty-free. Third-party redistribution permission has **not** been independently verified; confirm the license before wider public distribution.
-- **NovelAI** is a *planned* narration provider, **not connected**. Its credentials must not be put in browser storage or client source.
+- **NovelAI** narration uses the personal encrypted key stored on Orbis, via a server-only authenticated bridge. Live generation requires the matching Orbis deployment. No credentials are sent to Ember or stored in its browser storage.
 - **Orbis** now authorizes Ember launches and validates the linked Discord session. The deeper world-knowledge connector is still planned.
 - **Kilo** is an *optional future* mission-generation/evaluation provider, not a running service here.
 - **Fabula** is dormant and planning-stage. There is no Fabula dependency.

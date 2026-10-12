@@ -9,7 +9,7 @@
 
 ## M1: secure narration
 
-- NovelAI generation adapter added behind the existing protected backend (Orbis session gateway is complete)
+- NovelAI generation adapter behind the protected Orbis-linked backend (implemented); graceful retry, persistence and timeout/error tests
 - Turn IDs, retries, timeout and cancellation, error states, length controls
 - No invented provider success; tests with simulated provider failures
 - Consentful storage, story branches and regeneration that replace the chosen turn

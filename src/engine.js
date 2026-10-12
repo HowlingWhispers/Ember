@@ -78,6 +78,24 @@ export function addPlayerTurn(state, mode, rawText) {
   };
 }
 
+/**
+ * Commit provider output only for the player turn that prompted it.
+ * A stale reply must not attach to a newly imported/reset story.
+ */
+export function addNarratorTurn(state, playerTurnId, rawText) {
+  const last = state.turns.at(-1);
+  if (!last || last.id !== playerTurnId || last.source !== "player") {
+    throw new Error("Narration no longer matches the latest player turn");
+  }
+  const text = rawText.trim();
+  if (!text || text.length > 32000) throw new Error("Invalid narration text");
+  return {
+    ...state,
+    revision: state.revision + 1,
+    turns: [...state.turns, { id: uuid(), mode: "narrator", text, source: "provider" }],
+  };
+}
+
 export function advanceTime(state, elapsedMinutes) {
   if (!Number.isInteger(elapsedMinutes) || elapsedMinutes < 1 || elapsedMinutes > 1440) {
     throw new Error("Wait must be between 1 minute and 1 day");

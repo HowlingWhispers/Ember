@@ -98,6 +98,11 @@ h1, h2, h3 { font-family: Georgia, "Times New Roman", serif; }
 .composer textarea::placeholder { color: var(--faint); }
 .composer-footer { padding: 2px 3px 3px; }
 .composer-hint { font-size: 11px; color: var(--muted); }
+.narration-status { color: var(--gold); min-height: 0; font-size: 12px; margin-top: 8px; }
+.narration-status:empty { display: none; }
+.narration-error { display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-top: 8px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 12px; }
+.narration-error[hidden] { display: none; }
+.narration-error button { flex-shrink: 0; }
 .input-count { font-size: 10px; color: var(--faint); margin-left: auto; }
 .primary { border: 1px solid var(--gold); background: var(--gold); color: var(--bg); padding: 10px 15px; border-radius: 8px; font-weight: 700; font-size: 12px; white-space: nowrap; }
 .primary:hover { filter: brightness(1.08); }
@@ -149,8 +154,8 @@ dialog::backdrop { background: rgba(0,0,0,.67); }
 .wait-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 22px; }
 .wait-choices button { background: var(--paper-warm); border: 1px solid var(--border); border-radius: 9px; padding: 17px; }
 .wait-choices button:hover { border-color: var(--gold); }
-.toast { position: fixed; bottom: 20px; left: 50%; transform: translate(-50%, 15px); z-index: 100; background: var(--paper-warm); border: 1px solid var(--gold); color: var(--text); border-radius: 11px; padding: 12px 18px; max-width: calc(100vw - 30px); font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s; box-shadow: 0 8px 25px var(--shadow); }
-.toast.visible { opacity: 1; transform: translate(-50%, 0); }
+ .toast { position: fixed; top: 92px; right: 18px; left: auto; bottom: auto; transform: translateY(-10px); z-index: 100; background: var(--paper-warm); border: 1px solid var(--gold); color: var(--text); border-radius: 11px; padding: 12px 18px; max-width: calc(100vw - 30px); font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s; box-shadow: 0 8px 25px var(--shadow); }
+.toast.visible { opacity: 1; transform: translateY(0); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 .mobile-world { display: none; }
 .rail-scrim { display: none; }
@@ -181,6 +186,8 @@ dialog::backdrop { background: rgba(0,0,0,.67); }
   .writing-desk { padding: 13px 17px; }
 }
 @media (max-width: 530px) {
+  .toast { top: 64px; right: 10px; left: 10px; max-width: none; }
+  .narration-error { flex-wrap: wrap; }
   .topbar { gap: 7px; }
   .identity { gap: 4px; }
   .flame { font-size: 23px; }

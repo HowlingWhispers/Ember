@@ -17,7 +17,7 @@ Orbis **now validates launch identity and source record access**, but does not y
 
 - Player input -> Ember turn validation -> narration adapter (NovelAI, on a protected server endpoint) -> pending turn -> accepted response + event proposal.
 - Ember should verify proposed events before committing state. Provider prose is not authoritative facts.
-- Orbis launch/session validation is implemented; canonical record hydration and knowledge-filtered world projections remain unimplemented.
+- Orbis launch/session validation is implemented. NovelAI generation goes Ember browser -> Ember authenticated server -> Orbis trusted bridge -> encrypted user credential -> NovelAI, with no credential leaving Orbis. Canonical record hydration and knowledge-filtered world projections remain unimplemented.
 - A future mission evaluator (Kilo or a tested NAI structured pass) may **propose** mission state changes, but only verified event evidence can commit them.
 - Fabula may later be designed as a world simulation module, but must not be described as currently operational.
 

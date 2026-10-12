@@ -14,6 +14,9 @@ const BASE = '/ember';
 const ORBIS_CONNECT_PATH = '/ember/connect';
 const COOKIE = 'ember.sid';
 const SESSION_TTL = 8 * 60 * 60_000;
+const MAX_GENERATION_BODY = 90_000;
+const GENERATION_TIMEOUT = 100_000;
+const MAX_GENERATION_TURNS = 48;
 const ALLOWED_FILES = new Map([
   ['/ember/', ['index.html', 'text/html; charset=utf-8']],
   // Package sessions use a separate address so direct /ember/ always means sandbox.
@@ -113,7 +116,9 @@ export function createEmberServer({
     throw new Error('ORBiS internal bridge must be loopback HTTP, not a public endpoint.');
   }
   const secureCookie = env.NODE_ENV === 'production';
+  const webOrigin = new URL(env.EMBER_WEB_ORIGIN || 'https://thehowlingwhispers.com').origin;
   const sessions = new Map();
+  const generating = new Set();
 
   async function orbis(path, value) {
     const controller = new AbortController();
@@ -129,6 +134,34 @@ export function createEmberServer({
       return validContext(data) ? data : null;
     } finally { clearTimeout(timeout); }
   }
+  async function orbisGenerate(linkId, turns) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), GENERATION_TIMEOUT);
+    try {
+      const upstream = await fetchFn(`${orbisApi}/api/internal/ember/generate`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${env.EMBER_BRIDGE_SECRET}`, 'Content-Type':'application/json' },
+        body: JSON.stringify({ linkId, turns }),
+        signal: controller.signal,
+      });
+      let payload;
+      try { payload = await upstream.json(); } catch { payload = {}; }
+      if (!upstream.ok) {
+        const safeStatuses = [400,401,409,429,502,504];
+        return { status: safeStatuses.includes(upstream.status) ? upstream.status : 502,
+          error: typeof payload.error === 'string' && payload.error.length <= 300
+            ? payload.error : 'NovelAI narration is unavailable. Try again.',
+          code: typeof payload.code === 'string' && /^[A-Z_]{3,60}$/.test(payload.code)
+            ? payload.code : 'NOVELAI_ERROR' };
+      }
+      if (!payload || typeof payload.text !== 'string' || !payload.text.trim()
+        || payload.text.length > 32000) return { status:502, error:'NovelAI returned an invalid reply.', code:'NOVELAI_INVALID_RESPONSE' };
+      return { status:200, text:payload.text };
+    } catch {
+      return { status:504, error:'NovelAI did not respond in time. Retry the last turn.', code:'NOVELAI_TIMEOUT' };
+    } finally { clearTimeout(timeout); }
+  }
+
   async function authenticate(request) {
     const sid = readCookie(request);
     if (!sid) return null;
@@ -185,6 +218,38 @@ export function createEmberServer({
           return response.end();
         }
         return respond(response, 401, { error: 'An active Orbis login and approved Ember launch are required.' });
+      }
+      if (method === 'POST' && path === '/ember/api/generate') {
+        // Prevent third-party sites from spending a signed-in player's credits.
+        const origin = request.headers.origin;
+        if (origin !== undefined && origin !== webOrigin) return respond(response,403,{error:'Invalid generation origin.'});
+        if (request.headers['x-ember-request'] !== 'generation'
+          || !String(request.headers['content-type'] ?? '').startsWith('application/json')) {
+          return respond(response,403,{error:'Invalid generation request.'});
+        }
+        let body;
+        try { body = JSON.parse(await readBody(request, MAX_GENERATION_BODY)); }
+        catch (err) { return respond(response, err?.status === 413 ? 413 : 400,{error:'Invalid generation request.'}); }
+        const turns = body?.turns;
+        if (!Array.isArray(turns) || turns.length < 1 || turns.length > MAX_GENERATION_TURNS
+          || !turns.every(turn => turn && typeof turn === 'object'
+            && (turn.source === 'player' || turn.source === 'provider')
+            && ['narrator','action','speech','thought'].includes(turn.mode)
+            && (turn.source !== 'player' || turn.mode !== 'narrator')
+            && typeof turn.text === 'string' && turn.text.length >= 1 && turn.text.length <= 16000)
+          || turns.at(-1).source !== 'player'
+          || turns.reduce((sum,turn) => sum + turn.text.length,0) > 75000) {
+          return respond(response,400,{error:'Invalid story transcript.'});
+        }
+        const sid = readCookie(request);
+        const lock = sha(sid);
+        if (generating.has(lock)) return respond(response,429,{error:'A reply is already generating.'});
+        generating.add(lock);
+        try {
+          const result = await orbisGenerate(context.linkId,turns);
+          return respond(response,result.status,
+            result.status === 200 ? {text:result.text} : {error:result.error,code:result.code});
+        } finally { generating.delete(lock); }
       }
       if (method === 'GET' && path === '/ember/api/auth-check') {
         response.writeHead(204); return response.end();
