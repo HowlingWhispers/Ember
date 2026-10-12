@@ -82,12 +82,28 @@ export function addPlayerTurn(state, mode, rawText) {
  * Commit provider output only for the player turn that prompted it.
  * A stale reply must not attach to a newly imported/reset story.
  */
+/**
+ * Remove provider role-continuation wrappers, not fictional dialogue or prose.
+ * Deliberately narrow: only standalone line-start narrator tokens are removed.
+ */
+export function cleanNarration(rawText) {
+  if (typeof rawText !== "string") return rawText;
+  let text = rawText.replace(/\r\n?/g, "\n").trim();
+  // Some providers quote the entire response as one document.
+  if (text.startsWith('"') && text.endsWith('"') && text.length > 2) {
+    text = text.slice(1, -1).trim();
+  }
+  text = text.replace(/^[ \t]*(?:\*\*)?(?:NARRATOR\s*(?:\(\s*CONT(?:INUED)?\s*\))?|\[\s*NARRATOR\s*\]|PREVIEW OPENING)(?:\*\*)?\s*:\s*/gim, "");
+  text = text.replace(/\n{3,}/g, "\n\n");
+  return text.trim();
+}
+
 export function addNarratorTurn(state, playerTurnId, rawText) {
   const last = state.turns.at(-1);
   if (!last || last.id !== playerTurnId || last.source !== "player") {
     throw new Error("Narration no longer matches the latest player turn");
   }
-  const text = rawText.trim();
+  const text = cleanNarration(rawText);
   if (!text || text.length > 32000) throw new Error("Invalid narration text");
   return {
     ...state,
