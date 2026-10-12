@@ -81,7 +81,7 @@ root.innerHTML = `
             </div>
           </div>
           <div id="narrationStatus" class="narration-status" role="status" aria-live="polite"></div>
-          <div id="narrationError" class="narration-error" role="alert" hidden>
+          <div id="narrationError" class="narration-error" role="status" hidden>
             <span id="narrationErrorText"></span>
             <button id="retryNarration" type="button" class="chip-button">Retry reply</button>
           </div>
@@ -232,8 +232,12 @@ function renderNarrationState() {
     : canRetry ? "Last message is saved. Retry its response, or write another message."
     : "NovelAI uses the key already saved in your Orbis account.";
   $("#narrationStatus").textContent = narrationBusy ? "✧ Awaiting NovelAI's reply…" : "";
-  $("#narrationError").hidden = !narrationError;
-  $("#narrationErrorText").textContent = narrationError;
+  // Pre-existing local player turns from the earlier offline-only shell
+  // must be continuable after upgrade, without sending another message.
+  $("#narrationError").hidden = !(narrationError || canRetry);
+  $("#narrationError").setAttribute("role", narrationError ? "alert" : "status");
+  $("#narrationErrorText").textContent = narrationError || "Your last message is saved and waiting for a reply.";
+  $("#retryNarration").textContent = narrationError ? "Retry reply" : "Generate reply";
   $("#retryNarration").disabled = !canRetry;
 }
 async function generateLastTurn() {

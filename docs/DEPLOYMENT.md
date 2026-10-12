@@ -55,7 +55,10 @@ location ^~ /ember/ {
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    client_max_body_size 8k;
+    # NovelAI may take up to 90s plus Orbis bridge overhead.
+    proxy_read_timeout 120s;
+    proxy_send_timeout 120s;
+    client_max_body_size 100k;
 }
 ```
 
@@ -86,7 +89,8 @@ and redirects to `/ember/`.
 - Changing to a different Orbis user does not open another user's local story.
 - Orbis logout or expired session causes protected Ember requests to return 401.
 - Restricted and private Orbis assets cannot be launched by unauthorized users.
-- NovelAI remains **unconnected**. This is authenticated UI routing, not generated prose.
+- NovelAI narration now uses the signed-in player's *personal* encrypted credential in Orbis, through `POST /ember/api/generate` and `POST /api/internal/ember/generate`. Never add that key to Ember's environment or browser source.
+- Test by signing in, opening the blank sandbox, entering "Hello" and confirming a returned narrator turn, without a second login. Test missing key, provider rate limit, retry, and expired Orbis session.
 
 ## Operational limitations
 
@@ -98,3 +102,7 @@ and redirects to `/ember/`.
 - Periodic cleanup of expired rows can be done with
   `DELETE FROM ember_launch_tickets WHERE session_expires_at < now();`.
 - Production rate limits on public handoff endpoints should be configured in nginx.
+
+## Provider-generation rollout
+
+After updating Orbis and Ember code, restart `orbis.service` and `ember.service` (after their usual build and test steps). Orbis must already have `ORBIS_CREDENTIAL_ENCRYPTION_KEY` and the user's own NovelAI key in Account settings. No new secret is needed beyond the existing Ember bridge secret. Keep nginx `/ember/` proxy read timeout at least 120 seconds; the upstream provider request times out at 90 seconds. The response is non-streaming in this first milestone. No story text or NovelAI key is logged by the new generation path. If the player has a previously saved unanswered turn from the local-only version, the composer shows **Generate reply** so they can continue without rewriting it.
