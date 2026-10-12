@@ -61,8 +61,12 @@ location ^~ /ember/ {
 
 This server protects HTML, JS, CSS and JSON APIs, not just the API endpoints.
 Do **not** add `auth_basic` here. Retain external security headers and HTTPS.
-The `/ember/launch` endpoint requires a valid Orbis-issued one-use ticket and
-an Origin header exactly matching `ORBIS_WEB_ORIGIN`. It responds with a
+The `/ember/launch` endpoint requires a valid Orbis-issued one-use ticket.
+It accepts an explicit `Origin` exactly matching `ORBIS_WEB_ORIGIN`; if a
+browser omits or redacts `Origin` during the cross-origin form POST, it
+requires `Sec-Fetch-Site: same-site`, `Sec-Fetch-Mode: navigate` and
+`Sec-Fetch-Dest: document`. Explicit foreign origins and missing metadata
+are rejected; Orbis still validates and consumes the ticket. It responds with a
 host-only `ember.sid` cookie (Secure, HttpOnly, SameSite=Lax, Path=/ember/)
 and redirects to `/ember/`.
 
@@ -75,6 +79,8 @@ and redirects to `/ember/`.
 - Orbis Character button launches `mode=character`, without travel and quest controls.
 - Orbis World button launches `mode=world`, with the optional world rail.
 - A ticket cannot be redeemed twice and never appears in the URL.
+- An authenticated world launch from a real browser succeeds with a redacted Origin only when Fetch Metadata indicates same-site top-level navigation.
+- A foreign Origin remains forbidden, even when Fetch Metadata is otherwise valid.
 - Changing to a different Orbis user does not open another user's local story.
 - Orbis logout or expired session causes protected Ember requests to return 401.
 - Restricted and private Orbis assets cannot be launched by unauthorized users.

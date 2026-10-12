@@ -27,6 +27,29 @@ const sha = (text) => createHash('sha256').update(text).digest('hex');
 const safeSessionId = value => typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value);
 const safeLinkId = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 
+/**
+ * Orbis launches Ember through a cross-origin, top-level HTML form POST.
+ * Some browsers/privacy policies omit Origin (or set it to "null") for form
+ * navigations. When Origin is present and concrete, it MUST match Orbis.
+ *
+ * For redacted Origin only, accept a browser-attested, same-site document
+ * navigation. Sec-Fetch-* headers cannot be authored by browser JavaScript.
+ * The opaque one-use ticket still has to be redeemed against Orbis afterward.
+ *
+ * Do not relax this for arbitrary requests or a cross-site navigation:
+ * that would permit third-party login-CSRF attempts with their own tickets.
+ */
+function isTrustedLaunchNavigation(request, orbisOrigin) {
+  const origin = request.headers.origin;
+  if (typeof origin === 'string' && origin !== '' && origin !== 'null') {
+    return origin === orbisOrigin;
+  }
+  if (origin != null && origin !== '' && origin !== 'null') return false;
+  return request.headers['sec-fetch-site'] === 'same-site'
+    && request.headers['sec-fetch-mode'] === 'navigate'
+    && request.headers['sec-fetch-dest'] === 'document';
+}
+
 function securityHeaders(response) {
   response.setHeader('Cache-Control', 'no-store');
   response.setHeader('X-Content-Type-Options', 'nosniff');
@@ -77,7 +100,9 @@ export function createEmberServer({
   if (typeof env.EMBER_BRIDGE_SECRET !== 'string' || env.EMBER_BRIDGE_SECRET.length < 32) {
     throw new Error('EMBER_BRIDGE_SECRET must match the 32+-character Orbis server bridge secret.');
   }
-  const orbisOrigin = env.ORBIS_WEB_ORIGIN || 'https://lib.thehowlingwhispers.com';
+  // Use the URL origin, not the raw env string. A harmless trailing slash in
+  // ORBIS_WEB_ORIGIN must not break authenticated launch requests.
+  const orbisOrigin = new URL(env.ORBIS_WEB_ORIGIN || 'https://lib.thehowlingwhispers.com').origin;
   const orbisApi = (env.ORBIS_INTERNAL_URL || 'http://127.0.0.1:8789').replace(/\/$/, '');
   if (!orbisApi.startsWith('http://127.0.0.1:') && !orbisApi.startsWith('http://localhost:')) {
     throw new Error('ORBiS internal bridge must be loopback HTTP, not a public endpoint.');
@@ -119,7 +144,9 @@ export function createEmberServer({
     const path = (request.url ?? '').split('?')[0];
     try {
       if (path === '/ember/launch' && method === 'POST') {
-        if (request.headers.origin !== orbisOrigin) return respond(response, 403, { error: 'Invalid launch origin.' });
+        if (!isTrustedLaunchNavigation(request, orbisOrigin)) {
+          return respond(response, 403, { error: 'Invalid launch origin.' });
+        }
         if (!String(request.headers['content-type'] ?? '').startsWith('application/x-www-form-urlencoded')) {
           return respond(response, 415, { error: 'Expected a form submission.' });
         }

@@ -8,7 +8,7 @@ const linkId = '33333333-3333-4333-8333-333333333333';
 const secret = 'ember-test-bridge-secret-more-than-32-characters';
 const ticket = 'a'.repeat(43);
 
-async function fixture(mode = 'character') {
+async function fixture(mode = 'character', envOverrides = {}) {
   let authorized = true;
   let redeemed = false;
   let exchangeCalls = 0;
@@ -26,7 +26,7 @@ async function fixture(mode = 'character') {
     }
     return new Response(JSON.stringify(context), {status:200,headers:{'Content-Type':'application/json'}});
   };
-  const server = createEmberServer({ env:{EMBER_BRIDGE_SECRET:secret,NODE_ENV:'test',ORBIS_WEB_ORIGIN:'https://lib.thehowlingwhispers.com'},fetchFn });
+  const server = createEmberServer({ env:{EMBER_BRIDGE_SECRET:secret,NODE_ENV:'test',ORBIS_WEB_ORIGIN:'https://lib.thehowlingwhispers.com',...envOverrides},fetchFn });
   await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
   const addr = server.address();
   const base = `http://127.0.0.1:${addr.port}`;
@@ -35,10 +35,14 @@ async function fixture(mode = 'character') {
     revoke(){authorized=false;},
     exchangeCalls(){return exchangeCalls;},
     close(){return new Promise(resolve=>server.close(resolve));},
-    postLaunch(body=ticket,origin='https://lib.thehowlingwhispers.com') {
+    postLaunch(body=ticket,origin='https://lib.thehowlingwhispers.com',extraHeaders={}) {
       return fetch(`${base}/ember/launch`,{
         method:'POST',redirect:'manual',
-        headers:{Origin:origin,'Content-Type':'application/x-www-form-urlencoded'},
+        headers:{
+          'Content-Type':'application/x-www-form-urlencoded',
+          ...(origin === null ? {} : { Origin: origin }),
+          ...extraHeaders,
+        },
         body:new URLSearchParams({ticket:body}).toString(),
       });
     }
@@ -57,6 +61,56 @@ test('rejects untrusted form origin and malformed ticket', async t => {
   assert.equal((await app.postLaunch('bad')).status,400);
   assert.equal(app.exchangeCalls(),0);
 });
+test('allows a same-site top-level form POST with an omitted Origin header', async t => {
+  // A browser can redact Origin on a cross-origin navigation while preserving
+  // unforgeable Fetch Metadata. This is a real Orbis -> Ember launch path.
+  const app=await fixture('world');
+  t.after(()=>app.close());
+  const response=await app.postLaunch(ticket,null,{
+    'Sec-Fetch-Site':'same-site',
+    'Sec-Fetch-Mode':'navigate',
+    'Sec-Fetch-Dest':'document',
+  });
+  assert.equal(response.status,303);
+  assert.match(response.headers.get('set-cookie'),/ember\.sid=/);
+  assert.equal(app.exchangeCalls(),1);
+});
+
+test('allows a same-site document navigation with opaque Origin', async t => {
+  const app=await fixture('character');t.after(()=>app.close());
+  const response=await app.postLaunch(ticket,'null',{
+    'Sec-Fetch-Site':'same-site',
+    'Sec-Fetch-Mode':'navigate',
+    'Sec-Fetch-Dest':'document',
+  });
+  assert.equal(response.status,303);
+  assert.equal(app.exchangeCalls(),1);
+});
+
+test('rejects missing, opaque and explicitly foreign origins without trusted navigation metadata', async t => {
+  const app=await fixture();t.after(()=>app.close());
+  const nav={ 'Sec-Fetch-Site':'same-site', 'Sec-Fetch-Mode':'navigate', 'Sec-Fetch-Dest':'document' };
+  const cases=[
+    [null,{}],
+    ['null',{}],
+    [null,{...nav,'Sec-Fetch-Site':'cross-site'}],
+    [null,{...nav,'Sec-Fetch-Mode':'cors'}],
+    [null,{...nav,'Sec-Fetch-Dest':'empty'}],
+    ['https://attacker.invalid',nav],
+  ];
+  for (const [origin,headers] of cases) {
+    const response=await app.postLaunch(ticket,origin,headers);
+    assert.equal(response.status,403,`origin=${origin}, metadata=${JSON.stringify(headers)}`);
+  }
+  assert.equal(app.exchangeCalls(),0,'Refused requests must never redeem a ticket');
+});
+
+test('normalizes ORBIS_WEB_ORIGIN with a trailing slash', async t => {
+  const app=await fixture('world',{ORBIS_WEB_ORIGIN:'https://lib.thehowlingwhispers.com/'});
+  t.after(()=>app.close());
+  assert.equal((await app.postLaunch()).status,303);
+});
+
 test('creates an HttpOnly scoped cookie and serves distinct character launch', async t=>{
   const app=await fixture('character');t.after(()=>app.close());
   const start=await app.postLaunch();
