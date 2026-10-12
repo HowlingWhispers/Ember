@@ -14,6 +14,7 @@ let activeTab = "here";
 let mode = "action";
 let theme = getPreference("theme", "lamplight") === "daylight" ? "daylight" : "lamplight";
 let fontSize = Math.min(26, Math.max(16, Number(getPreference("font", "20")) || 20));
+let density = getPreference("density", "compact") === "comfortable" ? "comfortable" : "compact";
 let railOpen = false;
 const soundUserId = liveSession?.userId;
 let soundSettings = readSoundPreferences(soundUserId);
@@ -73,7 +74,7 @@ root.innerHTML = `
               <button type="button" data-mode="thought">Thought</button>
             </div>
             <label class="visually-hidden" for="playerInput">Your freeform roleplay</label>
-            <textarea id="playerInput" rows="3" maxlength="${MAX_INPUT}" placeholder="What do you do, say, or think?"></textarea>
+            <textarea id="playerInput" rows="2" maxlength="${MAX_INPUT}" placeholder="What do you do, say, or think?"></textarea>
             <div class="composer-footer">
               <span class="composer-hint" id="composeHint">Your words are recorded locally.</span>
               <span class="input-count" id="inputCount">0 / ${MAX_INPUT}</span>
@@ -117,6 +118,7 @@ root.innerHTML = `
   <dialog id="styleDialog" aria-labelledby="styleHeading"><form method="dialog" class="sheet"><div class="sheet-heading"><h2 id="styleHeading">Scene &amp; style</h2><button class="quiet" type="submit" aria-label="Close">✕</button></div>
     <p class="muted">Make the story comfortable to read. These controls affect presentation only.</p>
     <fieldset><legend>Reading theme</legend><div class="theme-choices"><label><input type="radio" name="theme" value="lamplight"> Lamplight</label><label><input type="radio" name="theme" value="daylight"> Daylight</label></div></fieldset>
+    <fieldset><legend>Reading layout</legend><div class="theme-choices"><label><input type="radio" name="density" value="compact"> Compact</label><label><input type="radio" name="density" value="comfortable"> Comfortable</label></div></fieldset>
     <label for="fontControl" class="setting-label">Story text size <output id="fontOutput"></output></label><input type="range" id="fontControl" min="16" max="26" step="1">
     <fieldset class="sound-options">
       <legend>Coda's Hey! Listen! alert</legend>
@@ -209,6 +211,8 @@ async function testCodaSound() {
 }
 function updateTheme() {
   document.documentElement.dataset.theme = theme;
+  document.documentElement.dataset.density = density;
+  root.querySelectorAll('input[name="density"]').forEach(input => input.checked = input.value === density);
   document.documentElement.style.setProperty("--prose-size", `${fontSize}px`);
   $("#fontControl").value = String(fontSize);
   $("#fontOutput").value = `${fontSize}px`;
@@ -305,6 +309,7 @@ function render() {
         : liveSession?.mode === "world"
           ? `<strong>World adventure:</strong> ${safe(liveSession.asset.name)}. Freeform roleplay powered by your Orbis NovelAI account. Travel and world-state simulation remain under development.`
           : '<strong>Offline concept preview.</strong> Your writing is saved locally. Sign into Orbis and enter Ember online to generate NovelAI replies.';
+  $(".story-column").classList.toggle("has-turns", Boolean(state?.turns?.length));
   $("#storyTurns").replaceChildren();
   if (state) for (const turn of state.turns) {
     const el = document.createElement("article");
@@ -427,6 +432,11 @@ $("#themeButton").addEventListener("click", () => {
 });
 root.querySelectorAll('input[name="theme"]').forEach(input => input.addEventListener("change", () => {
   theme = input.value; setPreference("theme", theme); updateTheme();
+}));
+root.querySelectorAll('input[name="density"]').forEach(input => input.addEventListener("change", event => {
+  density = event.target.value === "comfortable" ? "comfortable" : "compact";
+  setPreference("density", density);
+  updateTheme();
 }));
 $("#fontControl").addEventListener("input", event => {
   fontSize = Math.min(26, Math.max(16, Number(event.target.value) || 20));
