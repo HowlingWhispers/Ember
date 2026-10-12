@@ -7,7 +7,11 @@ const FONT_KEY = "hw:ember:font:v1";
 export function loadStory() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return { state: createStory(), error: "" };
+    if (!raw) {
+      const fresh = createStory();
+      persistStory(fresh);
+      return { state: fresh, error: "" };
+    }
     return { state: validateStory(JSON.parse(raw)), error: "" };
   } catch {
     // Fail closed: never overwrite or silently discard the unreadable saved story.

@@ -52,3 +52,24 @@ test("rejects fabricated turn attribution and oversized input", () => {
   s.turns.push({ id: "bad", mode: "narrator", text: "fake", source: "player" });
   assert.throws(() => validateStory(s));
 });
+
+test("initial local save is written and can be reloaded", async () => {
+  const originalStorage = globalThis.localStorage;
+  const values = new Map();
+  globalThis.localStorage = {
+    getItem: key => values.get(key) ?? null,
+    setItem: (key, value) => { values.set(key, value); },
+    removeItem: key => { values.delete(key); }
+  };
+  try {
+    const { loadStory, persistStory } = await import("../src/storage.js");
+    const first = loadStory();
+    assert.equal(first.error, "");
+    assert.equal(values.size, 1);
+    const updated = addPlayerTurn(first.state, "speech", "Hello");
+    persistStory(updated);
+    assert.equal(loadStory().state.turns.at(-1).text, "Hello");
+  } finally {
+    globalThis.localStorage = originalStorage;
+  }
+});

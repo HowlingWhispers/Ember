@@ -1,5 +1,5 @@
 import { createStory, addPlayerTurn, addJournalNote, advanceTime, formatClock, MAX_INPUT } from "./engine.js";
-import { loadStory, persistStory, clearStory, getPreference, setPreference, importStory, exportStory } from "./storage.js";
+import { loadStory, persistStory, getPreference, setPreference, importStory, exportStory } from "./storage.js";
 
 const root = document.querySelector("#app");
 let { state, error: loadError } = loadStory();
@@ -110,9 +110,12 @@ root.innerHTML = `
 `;
 
 const $ = selector => root.querySelector(selector);
+let toastTimer;
 const toast = message => {
   $("#toast").textContent = message;
   $("#toast").classList.add("visible");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, 4500);
 };
 const hideToast = () => $("#toast").classList.remove("visible");
 const openDialog = selector => $(selector).showModal();
@@ -299,11 +302,12 @@ $("#fileInput").addEventListener("change", async event => {
 });
 $("#newButton").addEventListener("click", () => {
   $(".overflow").open = false;
-  if (!window.confirm("Create a new story? Export the current story first if you want to keep it.")) return;
+  const warning = loadError
+    ? "The current browser save is unreadable. A new story will overwrite it. Continue only if you no longer need to recover that data."
+    : "Create a new story? Export the current story first if you want to keep it.";
+  if (!window.confirm(warning)) return;
   try {
     const fresh = createStory();
-    persistStory(fresh);
-    clearStory();
     persistStory(fresh);
     state = fresh;
     loadError = "";
