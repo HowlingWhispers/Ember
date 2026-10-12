@@ -250,10 +250,20 @@ async function generateLastTurn() {
   narrationError = "";
   renderNarrationState();
   try {
-    const turns = state.turns
+    const history = state.turns
       .filter(turn => turn.source === "player" || turn.source === "provider")
       .slice(-48)
       .map(turn => ({ mode: turn.mode, source: turn.source, text: turn.text }));
+    // Don't send an entire marathon save over a bounded generation endpoint.
+    // Keep the latest complete turns; Orbis makes the final prompt truncation.
+    const turns = [];
+    let remaining = 65_000;
+    for (let i = history.length - 1; i >= 0; i--) {
+      const entry = history[i];
+      if (entry.text.length > remaining) break;
+      turns.unshift(entry);
+      remaining -= entry.text.length;
+    }
     const response = await fetch("/ember/api/generate",{
       method: "POST", credentials: "same-origin", cache: "no-store",
       headers: { "Content-Type":"application/json", "X-Ember-Request":"generation" },
