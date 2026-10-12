@@ -19,6 +19,7 @@ const ALLOWED_FILES = new Map([
   ['/ember/src/app.js', ['src/app.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/engine.js', ['src/engine.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/storage.js', ['src/storage.js', 'text/javascript; charset=utf-8']],
+  ['/ember/src/coda-sound.js', ['src/coda-sound.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/styles.css', ['src/styles.css', 'text/css; charset=utf-8']],
 ]);
 const sha = (text) => createHash('sha256').update(text).digest('hex');
