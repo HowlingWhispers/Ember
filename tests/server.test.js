@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createEmberServer } from '../server/index.js';
+import { request as httpRequest } from 'node:http';
 
 const userId = '11111111-1111-4111-8111-111111111111';
 const assetId = '22222222-2222-4222-8222-222222222222';
@@ -36,14 +37,32 @@ async function fixture(mode = 'character', envOverrides = {}) {
     exchangeCalls(){return exchangeCalls;},
     close(){return new Promise(resolve=>server.close(resolve));},
     postLaunch(body=ticket,origin='https://lib.thehowlingwhispers.com',extraHeaders={}) {
-      return fetch(`${base}/ember/launch`,{
-        method:'POST',redirect:'manual',
-        headers:{
-          'Content-Type':'application/x-www-form-urlencoded',
-          ...(origin === null ? {} : { Origin: origin }),
-          ...extraHeaders,
-        },
-        body:new URLSearchParams({ticket:body}).toString(),
+      // Raw HTTP is intentional: fetch() inserts its own Sec-Fetch-Mode
+      // ('cors') and cannot faithfully simulate a browser document POST.
+      const payload = new URLSearchParams({ticket:body}).toString();
+      return new Promise((resolve, reject) => {
+        const target = new URL('/ember/launch', base);
+        const req = httpRequest(target, {
+          method: 'POST',
+          headers: {
+            'Content-Type':'application/x-www-form-urlencoded',
+            'Content-Length':Buffer.byteLength(payload),
+            ...(origin === null ? {} : { Origin: origin }),
+            ...extraHeaders,
+          },
+        }, response => {
+          response.resume();
+          response.once('end', () => {
+            const headers = new Headers();
+            for (const [key, value] of Object.entries(response.headers)) {
+              if (value !== undefined) headers.set(key, String(value));
+            }
+            resolve({ status: response.statusCode, headers });
+          });
+          response.once('error', reject);
+        });
+        req.once('error', reject);
+        req.end(payload);
       });
     }
   };
