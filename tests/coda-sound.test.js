@@ -15,7 +15,7 @@ test("uploaded Hey Listen clip is the default alert, with Coda original availabl
 });
 test("normalizes corrupt modes and clamps volume", () => {
   assert.deepEqual(normalizeSoundPreferences({ mode: "navi", volume: 200, customName: "x" }), {
-    mode: "coda", volume: 1, customName: "x",
+    mode: "hey-listen", volume: 1, customName: "x",
   });
   assert.equal(normalizeSoundPreferences({ mode: "silent", volume: -1 }).volume, 0);
   assert.equal(normalizeSoundPreferences({ mode: "custom", volume: Number.NaN }).volume, DEFAULT_SOUND.volume);
