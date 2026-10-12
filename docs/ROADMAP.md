@@ -5,11 +5,11 @@
 - Responsive storybook layout and optional world rail
 - Local immutable history, typed writing modes, autosave, JSON export/import
 - Preview-only world clock and journal notes
-- Clearly marked boundaries for unconnected NovelAI, Orbis, and travel
+- Secure Orbis-linked launch gate (now implemented); NovelAI generation and world travel still unavailable
 
 ## M1: secure narration
 
-- Protected backend session/auth and a NovelAI provider adapter
+- NovelAI generation adapter added behind the existing protected backend (Orbis session gateway is complete)
 - Turn IDs, retries, timeout and cancellation, error states, length controls
 - No invented provider success; tests with simulated provider failures
 - Consentful storage, story branches and regeneration that replace the chosen turn

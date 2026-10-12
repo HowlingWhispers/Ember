@@ -4,18 +4,20 @@ Ember is a **new application**, not a Speculus skin and not a Fabula frontend. I
 
 ## Current, implemented
 
-1. `src/engine.js`: immutable local story and journal transitions, bounded demo clock, and strict persisted-state validation.
-2. `src/storage.js`: namespaced browser autosave and portable JSON backup.
-3. `src/app.js`: storybook view, world rail, writing desk, preferences, and explicit unconnected-feature affordances.
-4. `src/styles.css`: standalone Lamplight/Daylight visual system and responsive layout.
+1. `server/index.js`: loopback-bound Node session gateway; POST launch redeems an Orbis ticket and every protected request rechecks the linked Orbis session.
+2. `src/bootstrap.js`: fetches a server-validated Orbis launch context before loading the UI outside localhost.
+3. `src/engine.js`: immutable local story and journal transitions, bounded demo clock, strict persisted-state validation, and separate character/world modes.
+4. `src/storage.js`: Orbis user + record + mode scoped browser autosave and portable JSON backup.
+5. `src/app.js`: storybook view, world rail, writing desk, preferences, and explicit unconnected-feature affordances.
+6. `src/styles.css`: standalone Lamplight/Daylight visual system and responsive layout.
 
-All sample lore references in this build are **concept-preview labels**, not live Orbis data, authoritative world state, or proof of what the player knows. Time changes from the preview Wait control are local demo state only.
+Orbis **now validates launch identity and source record access**, but does not yet hydrate Ember's world panels with canon or supply NAI narration. In localhost preview, example lore remains explicitly noncanonical sample text. Preview Wait only changes a local clock.
 
 ## Proposed provider architecture (not implemented)
 
 - Player input -> Ember turn validation -> narration adapter (NovelAI, on a protected server endpoint) -> pending turn -> accepted response + event proposal.
 - Ember should verify proposed events before committing state. Provider prose is not authoritative facts.
-- Orbis connector must be authenticated and knowledge-filtered: canonical entries remain distinguishable from story-local changes.
+- Orbis launch/session validation is implemented; canonical record hydration and knowledge-filtered world projections remain unimplemented.
 - A future mission evaluator (Kilo or a tested NAI structured pass) may **propose** mission state changes, but only verified event evidence can commit them.
 - Fabula may later be designed as a world simulation module, but must not be described as currently operational.
 

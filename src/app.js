@@ -104,8 +104,8 @@ root.innerHTML = `
     </div>
   </form></dialog>
   <dialog id="goDialog" aria-labelledby="goHeading"><form method="dialog" class="sheet"><div class="sheet-heading"><h2 id="goHeading">Go</h2><button class="quiet" type="submit" aria-label="Close">✕</button></div>
-    <p>Travel is part of the planned living world. This preview does not know which places are connected, so it won't invent routes or move your character.</p>
-    <p class="muted">You can still write a travel attempt freely in the writing desk. Validated world travel will arrive with the Orbis connection.</p>
+    <p>Travel is part of the planned living world. Ember has not yet loaded Orbis's canonical route graph or implemented authoritative journeys, so it will not invent routes or move your character.</p>
+    <p class="muted">You can still write a travel attempt freely in the writing desk. Validated travel requires later Orbis world-data and simulation integration.</p>
     <div class="sheet-foot"><button class="primary" type="submit">Back to story</button></div>
   </form></dialog>
   <input id="fileInput" type="file" accept=".json,application/json" hidden>
@@ -205,8 +205,8 @@ function railMarkup() {
   `;
   return `
     <div class="panel-kicker">YOUR WORLD KNOWLEDGE</div><h2>Almanac</h2>
-    <p class="muted">This will show the Orbis canon your character has actually learned, separately from story-local changes.</p>
-    <div class="empty-panel"><span aria-hidden="true">⌁</span><h3>Pages still unwritten</h3><p>Orbis is not connected. Hidden lore is not being revealed or invented.</p></div>
+    <p class="muted">This panel will show Orbis canon your character has actually learned, separately from story-local changes. That knowledge feed is not connected yet.</p>
+    <div class="empty-panel"><span aria-hidden="true">⌁</span><h3>Pages still unwritten</h3><p>The Orbis knowledge feed is not connected. Hidden lore is not being revealed or invented.</p></div>
   `;
 }
 function renderRail() {

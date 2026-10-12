@@ -41,4 +41,4 @@ The original Claude HTML mockup is the **visual reference**, not a mandate to re
 
 ## Privacy
 
-The preview saves in your browser's local storage. Export a JSON backup if you need to move or preserve a story. Do not put secrets or real NovelAI credentials into the preview; no backend authentication exists yet.
+Stories are saved in the browser under a scope derived from the Orbis user, selected record, and launch mode. Export JSON backups to preserve them. The protected Node service validates the Orbis session on each request; it does not yet provide cloud save storage or NovelAI narration.
