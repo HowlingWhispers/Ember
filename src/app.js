@@ -1,4 +1,4 @@
-import { createStory, createStoryFromLaunch, addPlayerTurn, addNarratorTurn, addJournalNote, advanceTime, formatClock, MAX_INPUT } from "./engine.js";
+import { createStory, createStoryFromLaunch, addPlayerTurn, addNarratorTurn, addJournalNote, advanceTime, formatClock, MAX_INPUT, cleanNarration } from "./engine.js";
 import { configureStoryScope, loadStory, persistStory, getPreference, setPreference, importStory, exportStory } from "./storage.js";
 import {
   readSoundPreferences, storeSoundPreferences, saveCustomRingtone,
@@ -259,7 +259,7 @@ async function generateLastTurn() {
     const history = state.turns
       .filter(turn => turn.source === "player" || turn.source === "provider")
       .slice(-48)
-      .map(turn => ({ mode: turn.mode, source: turn.source, text: turn.text }));
+      .map(turn => ({ mode: turn.mode, source: turn.source, text: turn.source === "provider" ? cleanNarration(turn.text) : turn.text }));
     // Don't send an entire marathon save over a bounded generation endpoint.
     // Keep the latest complete turns; Orbis makes the final prompt truncation.
     const turns = [];
@@ -319,7 +319,7 @@ function render() {
     label.textContent = turn.mode === "narrator" ? (turn.source === "provider" ? "STORY" : "PREVIEW OPENING") : `YOU · ${turn.mode.toUpperCase()}`;
     const prose = document.createElement("p");
     prose.className = "turn-prose";
-    prose.textContent = turn.text;
+    prose.textContent = turn.source === "provider" ? cleanNarration(turn.text) : turn.text;
     el.append(label, prose);
     $("#storyTurns").append(el);
   }
