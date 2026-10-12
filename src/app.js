@@ -223,11 +223,13 @@ function render() {
   $("#saveStatus").textContent = disabled ? "● Recovery needed" : "● Saved locally";
   $("#previewNotice").innerHTML = disabled
     ? `<strong>Save recovery needed.</strong> ${safe(loadError)} Use "Open saved file" to restore a backup, or "New story" after preserving the damaged browser data if needed.`
-    : liveSession?.mode === "character"
-      ? `<strong>Orbis character selected:</strong> ${safe(liveSession.asset.name)}. Your conversation is saved locally. NovelAI narration is not connected yet. No quests, travel or world simulation in this mode.`
-      : liveSession?.mode === "world"
-        ? `<strong>Orbis world selected:</strong> ${safe(liveSession.asset.name)}. Your adventure is freeform; writing is saved locally. NovelAI, travel, quests and world simulation are not connected yet.`
-        : '<strong>Offline concept preview.</strong> Your writing is saved locally. NovelAI, Orbis, and world simulation are not connected; no AI narration or canonical events are being generated.';
+    : liveSession?.mode === "sandbox"
+      ? '<strong>Free Sandbox.</strong> Start writing anywhere, with no package, predefined characters, or world required. Your words are saved privately on this device. NovelAI generation is not connected to Ember yet.'
+      : liveSession?.mode === "character"
+        ? `<strong>Orbis character selected:</strong> ${safe(liveSession.asset.name)}. Your conversation is saved locally. NovelAI narration is not connected yet. No quests, travel or world simulation in this mode.`
+        : liveSession?.mode === "world"
+          ? `<strong>Orbis world selected:</strong> ${safe(liveSession.asset.name)}. Your adventure is freeform; writing is saved locally. NovelAI, travel, quests and world simulation are not connected yet.`
+          : '<strong>Offline concept preview.</strong> Your writing is saved locally. NovelAI, Orbis, and world simulation are not connected; no AI narration or canonical events are being generated.';
   $("#storyTurns").replaceChildren();
   if (state) for (const turn of state.turns) {
     const el = document.createElement("article");
@@ -258,7 +260,7 @@ function railMarkup() {
     <div class="panel-kicker">PLACES &amp; ROUTES</div><h2>Where the world leads</h2>
     <p class="muted">These are known <em>design references</em>, not player discoveries or confirmed travel links.</p>
     <div class="place-entry current"><span>⌖</span><div><strong>${safe(w.location)}</strong><small>Current preview location</small></div></div>
-    ${liveSession ? '<div class="empty-panel small">Canonical travel routes have not been loaded from Orbis.</div>' : '<div class="place-entry"><span>◇</span><div><strong>Hollowmere</strong><small>Reference only · no route loaded</small></div></div><div class="place-entry"><span>◇</span><div><strong>Brackenjaw Enclave</strong><small>Reference only · no route loaded</small></div></div>'}
+    ${liveSession ? '<div class="empty-panel small">No locations established yet. Write freely to discover them.</div>' : '<div class="place-entry"><span>◇</span><div><strong>Hollowmere</strong><small>Reference only · no route loaded</small></div></div><div class="place-entry"><span>◇</span><div><strong>Brackenjaw Enclave</strong><small>Reference only · no route loaded</small></div></div>'}
     <button type="button" class="rail-action" data-rail-action="go">Go somewhere <span>→</span></button>
   `;
   if (activeTab === "people") return `
@@ -459,10 +461,10 @@ if (liveSession) {
       if (!response.ok) throw new Error('Session expired');
       const current = await response.json();
       if (current.userId !== liveSession.userId || current.mode !== liveSession.mode
-        || current.asset?.id !== liveSession.asset.id) throw new Error('Session changed');
+        || (current.asset?.id ?? null) !== (liveSession.asset?.id ?? null)) throw new Error('Session changed');
     } catch {
       root.replaceChildren();
-      root.innerHTML = '<div class="signed-out"><h1>Orbis session ended</h1><p>Your local story remains saved for your account. Return to Orbis and select a character or world to continue.</p><a href="https://lib.thehowlingwhispers.com/">Return to Orbis</a></div>';
+      root.innerHTML = '<div class="signed-out"><h1>Orbis session ended</h1><p>Your local story remains saved. Reopen Ember to restore your existing Orbis session or sign in again.</p><a href="/ember/">Reopen Ember</a></div>';
     }
   };
   document.addEventListener('visibilitychange', () => { if (!document.hidden) void verifyActiveSession(); });

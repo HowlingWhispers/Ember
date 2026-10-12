@@ -25,10 +25,23 @@ export function createStory() {
  * AI narration or a substitute for the missing world-simulation engine.
  */
 export function createStoryFromLaunch(session) {
-  if (!session || !["world", "character"].includes(session.mode)
-      || !session.asset || session.asset.type !== session.mode
-      || typeof session.asset.name !== "string") throw new Error("Invalid Orbis launch context");
+  if (!session || !["world", "character", "sandbox"].includes(session.mode)
+      || (session.mode === "sandbox" && session.asset !== null)
+      || (session.mode !== "sandbox" && (!session.asset || session.asset.type !== session.mode
+        || typeof session.asset.name !== "string"))) throw new Error("Invalid Orbis launch context");
   const story = createStory();
+  if (session.mode === "sandbox") {
+    // No implied canon, places, NPCs, opening narrator or mission. The very
+    // first creative act belongs to the player.
+    return {
+      ...story,
+      title: "Free Sandbox",
+      launch: { userId: session.userId, assetId: null, mode: "sandbox" },
+      world: { ...story.world, name: "Free Sandbox", location: "Not established", season: "Not simulated",
+        weather: "Not simulated", source: "orbis" },
+      turns: [],
+    };
+  }
   const title = session.mode === "character" ? `Roleplay with ${session.asset.name}` : session.asset.name;
   return {
     ...story,
@@ -97,8 +110,9 @@ export function validateStory(data) {
     const link = data.launch;
     if (!link || typeof link !== "object" || Array.isArray(link)
       || !isText(link.userId, 160) || !link.userId
-      || !isText(link.assetId, 160) || !link.assetId
-      || !["character", "world"].includes(link.mode)) throw new Error("Invalid Orbis launch binding");
+      || !["character", "world", "sandbox"].includes(link.mode)
+      || (link.mode === "sandbox" ? link.assetId !== null : !isText(link.assetId, 160) || !link.assetId))
+      throw new Error("Invalid Orbis launch binding");
   }
   const w = data.world;
   if (!w || !isText(w.name, 200) || !isText(w.location, 200) || !isText(w.season, 100) || !isText(w.weather, 100) || w.source !== "preview" && w.source !== "orbis" || !Number.isSafeInteger(w.day) || w.day < 1 || !Number.isInteger(w.minute) || w.minute < 0 || w.minute >= minutesPerDay) throw new Error("Invalid world data");

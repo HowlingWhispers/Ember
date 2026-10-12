@@ -72,10 +72,12 @@ and redirects to `/ember/`.
 
 ## 4. Verify before reopening the application
 
-- Direct anonymous `GET /ember/` returns a sign-in-through-Orbis page, not private content.
+- Direct unauthenticated-to-Ember `GET /ember/` redirects to `https://lib.thehowlingwhispers.com/ember/connect`, where an existing Orbis Discord session immediately starts a **blank sandbox**, or missing sign-in uses the existing Discord flow.
+- Orbis migration `032_ember_sandbox_launch.sql` and `public/ember-handoff.js` are required for this direct-entry flow. Rebuild Orbis before switching Ember to the new mode.
 - Anonymous `GET /ember/src/app.js` and `GET /ember/assets/sounds/hey-listen.mp3` are denied.
 - Authenticated `GET /ember/assets/sounds/hey-listen.mp3` returns MP3 bytes with `audio/mpeg`; the app CSP allows `media-src 'self' blob:`.
 - Coda's Hey! Listen! clip can be selected and tested; only locally uploaded user ringtones stay in IndexedDB.
+- Opening `/ember/` directly launches `mode=sandbox` with no attached world, NPCs, or starting narrator.
 - Orbis Character button launches `mode=character`, without travel and quest controls.
 - Orbis World button launches `mode=world`, with the optional world rail.
 - A ticket cannot be redeemed twice and never appears in the URL.

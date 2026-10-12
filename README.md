@@ -1,6 +1,6 @@
 # Ember 🔥
 
-**Howling Whispers Ember** is a standalone, freeform, living-adventure application. The player writes naturally; systems support the world without forcing quests, dialogue trees, or visible rails.
+**Howling Whispers Ember** is a standalone, freeform, living-adventure application. **Open `/ember/` directly** with your existing Orbis Discord session to begin a completely blank sandbox, or optionally launch a character or world from Orbis. No package is required to write.
 
 ## First playable shell
 

@@ -4,18 +4,21 @@ const KEY = "hw:ember:story:v1";
 let activeKey = KEY;
 let sessionContext = null;
 export function configureStoryScope(session) {
-  if (!session || !session.asset || !["character","world"].includes(session.mode)
-    || typeof session.userId !== "string" || typeof session.asset.id !== "string"
+  const sandbox = session?.mode === "sandbox" && session.asset === null;
+  const assetLaunch = ["character", "world"].includes(session?.mode)
+    && session.asset && typeof session.asset.id === "string"
+    && /^[0-9a-f-]{36}$/i.test(session.asset.id);
+  if (!session || typeof session.userId !== "string"
     || !/^[0-9a-f-]{36}$/i.test(session.userId)
-    || !/^[0-9a-f-]{36}$/i.test(session.asset.id)) throw new Error("Invalid Orbis story scope");
+    || (!sandbox && !assetLaunch)) throw new Error("Invalid Orbis story scope");
   sessionContext = session;
-  activeKey = `${KEY}:${session.userId}:${session.mode}:${session.asset.id}`;
+  activeKey = `${KEY}:${session.userId}:${session.mode}:${sandbox ? "blank" : session.asset.id}`;
 }
 function checkStoryBinding(story) {
   const valid = validateStory(story);
   if (sessionContext) {
     if (valid.launch?.userId !== sessionContext.userId
-      || valid.launch?.assetId !== sessionContext.asset.id
+      || valid.launch?.assetId !== (sessionContext.asset?.id ?? null)
       || valid.launch?.mode !== sessionContext.mode) throw new Error("This save belongs to a different Orbis account or launch");
   } else if (valid.launch) {
     throw new Error("An Orbis-bound save cannot be opened in offline preview");

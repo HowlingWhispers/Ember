@@ -13,7 +13,8 @@ async function fixture(mode = 'character', envOverrides = {}) {
   let authorized = true;
   let redeemed = false;
   let exchangeCalls = 0;
-  const context = { userId, linkId, mode, asset: { id:assetId, type:mode, name:mode === 'character'?'Ragna Holt':'Bitterroot', summary:'Canon reference' } };
+  const context = { userId, linkId, mode, asset: mode === 'sandbox' ? null
+    : { id:assetId, type:mode, name:mode === 'character'?'Ragna Holt':'Bitterroot', summary:'Canon reference' } };
   const fetchFn = async (url, init) => {
     assert.match(String(url), /^http:\/\/127\.0\.0\.1:8789\/api\/internal\/ember\/(check|redeem)$/);
     assert.equal(init.headers.Authorization, `Bearer ${secret}`);
@@ -69,7 +70,12 @@ async function fixture(mode = 'character', envOverrides = {}) {
 }
 test('Ember denies the browser shell and files without a current Orbis handoff', async t => {
   const app = await fixture(); t.after(()=>app.close());
-  for (const path of ['/ember/','/ember/src/app.js','/ember/assets/sounds/hey-listen.mp3','/ember/api/session']) {
+  // The public entry always starts via the existing Orbis Discord session;
+  // it must not demand a world or character asset.
+  const entry = await fetch(app.base+'/ember/',{redirect:'manual'});
+  assert.equal(entry.status,302);
+  assert.equal(entry.headers.get('location'),'https://lib.thehowlingwhispers.com/ember/connect');
+  for (const path of ['/ember/src/app.js','/ember/assets/sounds/hey-listen.mp3','/ember/api/session']) {
     const r = await fetch(app.base+path);
     assert.equal(r.status,401,path);
   }
@@ -156,6 +162,20 @@ test('creates an HttpOnly scoped cookie and serves distinct character launch', a
   assert.deepEqual([...bytes.slice(0,3)],[73,68,51]); // ID3 header
   assert.match(html.headers.get('content-security-policy'),/media-src 'self' blob:/);
   assert.equal((await app.postLaunch()).status,401,'Replay rejected by Orbis');
+});
+test('a package-free sandbox receives a private Ember session and a blank UI',async t=>{
+  const app=await fixture('sandbox');t.after(()=>app.close());
+  const launched=await app.postLaunch();
+  assert.equal(launched.status,303);
+  const cookie=launched.headers.get('set-cookie').split(';')[0];
+  const response=await fetch(app.base+'/ember/api/session',{headers:{Cookie:cookie}});
+  assert.equal(response.status,200);
+  const payload=await response.json();
+  assert.equal(payload.mode,'sandbox');
+  assert.equal(payload.asset,null);
+  const shell=await fetch(app.base+'/ember/',{headers:{Cookie:cookie}});
+  assert.equal(shell.status,200);
+  assert.match(await shell.text(),/bootstrap\.js/);
 });
 test('revocation of Orbis session immediately blocks existing Ember cookie', async t=>{
   const app=await fixture('world');t.after(()=>app.close());

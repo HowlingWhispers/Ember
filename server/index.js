@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 const APP_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BASE = '/ember';
+const ORBIS_CONNECT_PATH = '/ember/connect';
 const COOKIE = 'ember.sid';
 const SESSION_TTL = 8 * 60 * 60_000;
 const ALLOWED_FILES = new Map([
@@ -85,8 +86,9 @@ async function readBody(request, limit = 4096) {
 }
 
 function validContext(value) {
-  return value && safeLinkId(value.linkId) && safeLinkId(value.userId)
-    && (value.mode === 'world' || value.mode === 'character')
+  if (!value || !safeLinkId(value.linkId) || !safeLinkId(value.userId)) return false;
+  if (value.mode === 'sandbox') return value.asset === null;
+  return (value.mode === 'world' || value.mode === 'character')
     && value.asset && safeLinkId(value.asset.id) && value.asset.type === value.mode
     && typeof value.asset.name === 'string' && value.asset.name.length <= 300
     && typeof value.asset.summary === 'string' && value.asset.summary.length <= 20000;
@@ -103,6 +105,7 @@ export function createEmberServer({
   // Use the URL origin, not the raw env string. A harmless trailing slash in
   // ORBIS_WEB_ORIGIN must not break authenticated launch requests.
   const orbisOrigin = new URL(env.ORBIS_WEB_ORIGIN || 'https://lib.thehowlingwhispers.com').origin;
+  const orbisConnectUrl = new URL(ORBIS_CONNECT_PATH, orbisOrigin).href;
   const orbisApi = (env.ORBIS_INTERNAL_URL || 'http://127.0.0.1:8789').replace(/\/$/, '');
   if (!orbisApi.startsWith('http://127.0.0.1:') && !orbisApi.startsWith('http://localhost:')) {
     throw new Error('ORBiS internal bridge must be loopback HTTP, not a public endpoint.');
@@ -132,7 +135,7 @@ export function createEmberServer({
     if (!entry) return null;
     if (entry.expiresAt <= Date.now()) { sessions.delete(key); return null; }
     const context = await orbis('check', { linkId: entry.linkId });
-    if (!context || context.userId !== entry.userId || context.asset.id !== entry.assetId || context.mode !== entry.mode) {
+    if (!context || context.userId !== entry.userId || (context.asset?.id ?? null) !== entry.assetId || context.mode !== entry.mode) {
       sessions.delete(key);
       return null;
     }
@@ -155,7 +158,7 @@ export function createEmberServer({
         const context = await orbis('redeem', { ticket });
         if (!context) return respond(response, 401, '<h1>Launch expired</h1><p>Return to Orbis and launch again.</p>', 'text/html; charset=utf-8');
         const sid = randomBytes(32).toString('base64url');
-        sessions.set(sha(sid), { linkId: context.linkId, userId: context.userId, assetId: context.asset.id, mode: context.mode, expiresAt: Date.now() + SESSION_TTL });
+        sessions.set(sha(sid), { linkId: context.linkId, userId: context.userId, assetId: context.asset?.id ?? null, mode: context.mode, expiresAt: Date.now() + SESSION_TTL });
         response.writeHead(303, {
           Location: '/ember/',
           'Set-Cookie': `${COOKIE}=${sid}; Path=/ember/; HttpOnly; SameSite=Lax${secureCookie ? '; Secure' : ''}; Max-Age=${SESSION_TTL / 1000}`,
@@ -169,7 +172,11 @@ export function createEmberServer({
       const context = await authenticate(request);
       if (!context) {
         if (method === 'GET' && path === '/ember/') {
-          return respond(response, 401, '<!doctype html><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>Ember</title><h1>Sign in through Orbis</h1><p>Open a World or Character in <a href="https://lib.thehowlingwhispers.com/">Orbis</a>, then choose its Ember button.</p>', 'text/html; charset=utf-8');
+          // Ember is an application, not an asset-only launcher. Send browsers
+          // through the existing Orbis host-only Discord session for a blank
+          // sandbox. World/character launch buttons remain optional.
+          response.writeHead(302, { Location: orbisConnectUrl });
+          return response.end();
         }
         return respond(response, 401, { error: 'An active Orbis login and approved Ember launch are required.' });
       }

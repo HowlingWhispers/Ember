@@ -8,11 +8,13 @@ if (!local) {
     const response = await fetch('/ember/api/session', { credentials: 'same-origin', cache: 'no-store' });
     if (!response.ok) throw new Error('Orbis session required');
     const session = await response.json();
-    if (!session || !['world','character'].includes(session.mode)
-      || session.asset?.type !== session.mode) throw new Error('Invalid Orbis session');
+    if (!session || !['world','character','sandbox'].includes(session.mode)
+      || (session.mode === 'sandbox' ? session.asset !== null : session.asset?.type !== session.mode)) {
+      throw new Error('Invalid Orbis session');
+    }
     globalThis.__EMBER_SESSION__ = Object.freeze(session);
   } catch {
-    document.querySelector('#app').innerHTML = '<div class="signed-out"><h1>Open Ember through Orbis</h1><p>Sign in with Discord at Orbis and choose Roleplay in Ember on a Character or Enter world in Ember on a World.</p><a href="https://lib.thehowlingwhispers.com/">Return to Orbis</a></div>';
+    document.querySelector('#app').innerHTML = '<div class="signed-out"><h1>Ember session unavailable</h1><p>Open Ember directly to reconnect your Orbis login and begin a free sandbox. You never need to choose a world or character first.</p><a href="/ember/">Reconnect to Ember</a></div>';
   }
 }
 if (local || globalThis.__EMBER_SESSION__) await import('./app.js');
