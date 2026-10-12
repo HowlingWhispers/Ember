@@ -377,6 +377,7 @@ $("#sendButton").addEventListener("click", () => {
     const next = addPlayerTurn(state, mode, $("#playerInput").value);
     narrationError = "";
     $("#playerInput").value = "";
+    resizeComposer();
     $("#inputCount").textContent = `0 / ${MAX_INPUT}`;
     setStory(next);
     $("#storyScroll").scrollTop = $("#storyScroll").scrollHeight;
@@ -388,7 +389,15 @@ $("#retryNarration").addEventListener("click", () => void generateLastTurn());
 $("#playerInput").addEventListener("keydown", event => {
   if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); $("#sendButton").click(); }
 });
+function resizeComposer() {
+  const field = $("#playerInput");
+  field.style.height = "auto";
+  field.style.height = `${Math.min(field.scrollHeight, 170)}px`;
+  field.style.overflowY = field.scrollHeight > 170 ? "auto" : "hidden";
+}
+resizeComposer();
 $("#playerInput").addEventListener("input", () => {
+  resizeComposer();
   $("#inputCount").textContent = `${$("#playerInput").value.length} / ${MAX_INPUT}`;
   renderNarrationState();
 });
