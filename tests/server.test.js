@@ -13,12 +13,24 @@ async function fixture(mode = 'character', envOverrides = {}) {
   let authorized = true;
   let redeemed = false;
   let exchangeCalls = 0;
+  let generateCalls = 0;
   const context = { userId, linkId, mode, asset: mode === 'sandbox' ? null
     : { id:assetId, type:mode, name:mode === 'character'?'Ragna Holt':'Bitterroot', summary:'Canon reference' } };
   const fetchFn = async (url, init) => {
-    assert.match(String(url), /^http:\/\/127\.0\.0\.1:8789\/api\/internal\/ember\/(check|redeem)$/);
+    assert.match(String(url), /^http:\/\/127\.0\.0\.1:8789\/api\/internal\/ember\/(check|redeem|generate)$/);
     assert.equal(init.headers.Authorization, `Bearer ${secret}`);
     const body = JSON.parse(init.body);
+    if (url.endsWith('/generate')) {
+      generateCalls++;
+      assert.equal(body.linkId, linkId);
+      if (!authorized) return new Response(JSON.stringify({error:'Orbis session expired.'}),{status:401});
+      if (envOverrides.TEST_PROVIDER_ERROR) {
+        return new Response(JSON.stringify({error:'NovelAI is currently unavailable.',code:'NOVELAI_ERROR'}),{status:502});
+      }
+      return new Response(JSON.stringify({text:'The forest answers your hello.'}),{
+        status:200,headers:{'Content-Type':'application/json'}
+      });
+    }
     if (url.endsWith('/redeem')) {
       exchangeCalls++;
       if (body.ticket !== ticket || redeemed) return new Response(JSON.stringify({ error:'used' }), {status:401});
@@ -36,6 +48,7 @@ async function fixture(mode = 'character', envOverrides = {}) {
     base,
     revoke(){authorized=false;},
     exchangeCalls(){return exchangeCalls;},
+    generateCalls(){return generateCalls;},
     close(){return new Promise(resolve=>server.close(resolve));},
     postLaunch(body=ticket,origin='https://lib.thehowlingwhispers.com',extraHeaders={}) {
       // Raw HTTP is intentional: fetch() inserts its own Sec-Fetch-Mode
@@ -198,4 +211,58 @@ test('logout clears Ember cookie but does not sign out Orbis', async t=>{
   assert.equal(out.status,204);
   assert.match(out.headers.get('set-cookie'),/Max-Age=0/);
   assert.equal((await fetch(app.base+'/ember/api/session',{headers:{Cookie:cookie}})).status,401);
+});
+
+const transcript=[{source:'player',mode:'speech',text:'Hello'}];
+function requestNarration(app, cookie, turns=transcript, extraHeaders={}) {
+  return fetch(app.base+'/ember/api/generate',{
+    method:'POST',
+    headers:{
+      Cookie:cookie, Origin:'https://thehowlingwhispers.com',
+      'Content-Type':'application/json',
+      'X-Ember-Request':'generation',
+      ...extraHeaders,
+    },
+    body:JSON.stringify({turns}),
+  });
+}
+test('Hello in sandbox calls Orbis generation and returns a reply',async t=>{
+  const app=await fixture('sandbox');t.after(()=>app.close());
+  const entered=await app.postLaunch();
+  const cookie=entered.headers.get('set-cookie').split(';')[0];
+  const response=await requestNarration(app,cookie);
+  assert.equal(response.status,200);
+  assert.deepEqual(await response.json(),{text:'The forest answers your hello.'});
+  assert.equal(app.generateCalls(),1);
+});
+test('no Orbis login means no generation and no bridge call',async t=>{
+  const app=await fixture('sandbox');t.after(()=>app.close());
+  const response=await requestNarration(app,'ember.sid='+'f'.repeat(43));
+  assert.equal(response.status,401);
+  assert.equal(app.generateCalls(),0);
+});
+test('revoked Orbis access prevents paid generation',async t=>{
+  const app=await fixture('sandbox');t.after(()=>app.close());
+  const cookie=(await app.postLaunch()).headers.get('set-cookie').split(';')[0];
+  app.revoke();
+  const response=await requestNarration(app,cookie);
+  assert.equal(response.status,401);
+  assert.equal(app.generateCalls(),0);
+});
+test('generation requires same-origin request intent and valid player transcript',async t=>{
+  const app=await fixture('sandbox');t.after(()=>app.close());
+  const cookie=(await app.postLaunch()).headers.get('set-cookie').split(';')[0];
+  assert.equal((await requestNarration(app,cookie,transcript,{Origin:'https://attacker.invalid'})).status,403);
+  assert.equal((await requestNarration(app,cookie,transcript,{'X-Ember-Request':'x'})).status,403);
+  assert.equal((await requestNarration(app,cookie,[{source:'provider',mode:'narrator',text:'fake'}])).status,400);
+  assert.equal((await requestNarration(app,cookie,[{source:'player',mode:'narrator',text:'fake'}])).status,400);
+  assert.equal(app.generateCalls(),0);
+});
+test('a failed NovelAI response keeps errors sanitized and allows a retry',async t=>{
+  const app=await fixture('sandbox',{TEST_PROVIDER_ERROR:true});t.after(()=>app.close());
+  const cookie=(await app.postLaunch()).headers.get('set-cookie').split(';')[0];
+  const response=await requestNarration(app,cookie);
+  assert.equal(response.status,502);
+  assert.match((await response.json()).error,/NovelAI/);
+  assert.equal(app.generateCalls(),1);
 });

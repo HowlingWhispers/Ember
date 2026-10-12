@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createStory, addPlayerTurn, advanceTime, addJournalNote, validateStory, formatClock } from "../src/engine.js";
+import { createStory, addPlayerTurn, addNarratorTurn, advanceTime, addJournalNote, validateStory, formatClock } from "../src/engine.js";
 import { importStory, exportStory } from "../src/storage.js";
 
 test("starts as an explicitly noncanonical concept preview", () => {
@@ -72,4 +72,18 @@ test("initial local save is written and can be reloaded", async () => {
   } finally {
     globalThis.localStorage = originalStorage;
   }
+});
+
+test("narration attaches only to the player turn that requested it", () => {
+  const base=createStory();
+  const awaiting=addPlayerTurn(base,'speech','Hello');
+  const id=awaiting.turns.at(-1).id;
+  const completed=addNarratorTurn(awaiting,id,'Hello to you.');
+  assert.equal(completed.turns.at(-1).text,'Hello to you.');
+  assert.equal(completed.turns.at(-1).source,'provider');
+  assert.equal(completed.turns.at(-1).mode,'narrator');
+  assert.equal(awaiting.turns.at(-1).source,'player');
+  assert.throws(()=>addNarratorTurn(completed,id,'Double response'),/no longer matches/);
+  assert.throws(()=>addNarratorTurn(awaiting,'other','Wrong turn'),/no longer matches/);
+  assert.throws(()=>addNarratorTurn(awaiting,id,'   '),/Invalid narration/);
 });
