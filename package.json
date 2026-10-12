@@ -6,7 +6,10 @@
   "description": "Independent freeform living-adventure browser shell",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "check": "node --check src/engine.js && node --check src/storage.js && node --check src/app.js"
+    "check": "node --check src/engine.js && node --check src/storage.js && node --check src/app.js && node --check server/index.js && node --check src/bootstrap.js",
+    "start:api": "node server/index.js"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  }
 }
