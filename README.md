@@ -4,7 +4,7 @@
 
 ## First playable shell
 
-This repository currently contains an **offline local preview**, not a connected AI simulator.
+This repository contains an **Orbis-authenticated Ember launch shell** and an offline localhost preview. AI narration and world simulation are not yet connected.
 
 - Storybook reader, Action/Speech/Thought writing desk, and Here / Places / People / Journal / Almanac world rail
 - Lamplight and Daylight themes, adjustable story text size, responsive mobile view
@@ -12,7 +12,7 @@ This repository currently contains an **offline local preview**, not a connected
 - JSON save/export/import with schema validation
 - No fabricated NovelAI replies, mission completions, travel routes, or Orbis canon
 
-Open the application using a local HTTP server (required for browser ES modules):
+For an offline UI preview, use a local HTTP server (required for browser ES modules):
 
 ```sh
 python3 -m http.server 5173
@@ -26,13 +26,13 @@ npm test
 npm run check
 ```
 
-Node.js 22+ is recommended. There are **no npm dependencies**, installation steps, or build artifacts yet.
+Node.js 22+ is recommended. There are **no npm dependencies**. For live Orbis handoff, run the protected Node service according to [deployment](docs/DEPLOYMENT.md).
 
 ## Architectural boundaries
 
 - **Ember** owns its own interface, local state, persistence, and future orchestration.
 - **NovelAI** is a *planned* narration provider, **not connected**. Its credentials must not be put in browser storage or client source.
-- **Orbis** is a *planned* authenticated source of canon and knowledge. The preview labels sample references as such.
+- **Orbis** now authorizes Ember launches and validates the linked Discord session. The deeper world-knowledge connector is still planned.
 - **Kilo** is an *optional future* mission-generation/evaluation provider, not a running service here.
 - **Fabula** is dormant and planning-stage. There is no Fabula dependency.
 - **Speculus V1–V4** are not imported or modified.
