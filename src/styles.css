@@ -201,6 +201,25 @@ dialog::backdrop { background: rgba(0,0,0,.67); }
   .mode-switch button { padding: 7px 10px; }
   .composer textarea { min-height: 70px; }
 }
+.coda-dock { position: fixed; bottom: 185px; right: 20px; z-index: 8; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; pointer-events: none; }
+.coda-dock > * { pointer-events: auto; }
+.coda-orb { border: 1px solid var(--gold); background: var(--paper-warm); color: var(--text); box-shadow: 0 7px 22px var(--shadow), 0 0 23px color-mix(in srgb, #79cdeb, transparent 74%); border-radius: 999px; padding: 11px 13px; display: flex; gap: 7px; align-items: center; font-size: 14px; }
+.coda-orb > span:first-child { font-size: 20px; }
+.coda-orb-label { font-size: 12px; font-weight: 700; }
+.coda-orb:hover { border-color: #79cdeb; }
+.coda-bubble { max-width: min(320px, calc(100vw - 45px)); padding: 17px; background: var(--paper); border: 1px solid #79cdeb; box-shadow: 0 15px 35px var(--shadow); border-radius: 12px; font-size: 13px; line-height: 1.6; }
+.coda-bubble[hidden] { display: none; }
+.coda-bubble-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.coda-greeting { color: #79cdeb; }
+.coda-disclaimer { color: var(--muted); font-size: 11px; }
+.sound-options { display: flex; flex-direction: column; gap: 12px; }
+.sound-options label { font-size: 13px; cursor: pointer; }
+.sound-options input[type="radio"], .sound-options input[type="range"] { accent-color: var(--gold); }
+.sound-options input[type="range"] { width: 100%; }
+.coda-upload-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.sound-file-name { margin: 0; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+@media (max-width: 850px) { .coda-dock { bottom: 184px; right: 12px; } }
+@media (max-width: 530px) { .coda-dock { bottom: 210px; right: 11px; } .coda-orb-label { display: none; } }
 :root[data-ember-mode="character"] .layout { grid-template-columns: minmax(0, 1fr); }
 :root[data-ember-mode="character"] .world-rail,
 :root[data-ember-mode="character"] .rail-scrim,

@@ -8,6 +8,7 @@ This repository contains an **Orbis-authenticated Ember launch shell** and an of
 
 - Storybook reader, Action/Speech/Thought writing desk, and Here / Places / People / Journal / Almanac world rail
 - Lamplight and Daylight themes, adjustable story text size, responsive mobile view
+- Coda companion preview with original synthesized alert, silent mode, per-account custom MP3/WAV/OGG ringtone storage, and a Test Sound control
 - Persistent local story, journal notes, and a preview world clock
 - JSON save/export/import with schema validation
 - No fabricated NovelAI replies, mission completions, travel routes, or Orbis canon
@@ -31,6 +32,7 @@ Node.js 22+ is recommended. There are **no npm dependencies**. For live Orbis ha
 ## Architectural boundaries
 
 - **Ember** owns its own interface, local state, persistence, and future orchestration.
+- **Coda** currently has a *notification UI preview* and local ringtone controls, not a listening or canon-saving agent. Custom files are stored in browser IndexedDB, not in the repository or on the server.
 - **NovelAI** is a *planned* narration provider, **not connected**. Its credentials must not be put in browser storage or client source.
 - **Orbis** now authorizes Ember launches and validates the linked Discord session. The deeper world-knowledge connector is still planned.
 - **Kilo** is an *optional future* mission-generation/evaluation provider, not a running service here.

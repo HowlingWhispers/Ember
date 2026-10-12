@@ -1,5 +1,9 @@
 import { createStory, createStoryFromLaunch, addPlayerTurn, addJournalNote, advanceTime, formatClock, MAX_INPUT } from "./engine.js";
 import { configureStoryScope, loadStory, persistStory, getPreference, setPreference, importStory, exportStory } from "./storage.js";
+import {
+  readSoundPreferences, storeSoundPreferences, saveCustomRingtone,
+  deleteCustomRingtone, playCodaSound,
+} from "./coda-sound.js";
 
 const root = document.querySelector("#app");
 const liveSession = globalThis.__EMBER_SESSION__ ?? null;
@@ -11,6 +15,9 @@ let mode = "action";
 let theme = getPreference("theme", "lamplight") === "daylight" ? "daylight" : "lamplight";
 let fontSize = Math.min(26, Math.max(16, Number(getPreference("font", "20")) || 20));
 let railOpen = false;
+const soundUserId = liveSession?.userId;
+let soundSettings = readSoundPreferences(soundUserId);
+let soundBusy = false;
 const modes = ["action", "speech", "thought"];
 const tabs = ["here", "places", "people", "journal", "almanac"];
 const safe = value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
@@ -88,10 +95,36 @@ root.innerHTML = `
       </aside>
     </div>
   </div>
+  <section class="coda-dock" aria-label="Coda notification companion preview">
+    <div id="codaBubble" class="coda-bubble" hidden>
+      <div class="coda-bubble-header"><strong>Coda</strong><button type="button" class="quiet" id="codaDismiss" aria-label="Dismiss Coda message">✕</button></div>
+      <strong class="coda-greeting">Hey! Listen! 🐾</strong>
+      <p>Found a character worth keeping? Once Coda's discovery engine is connected, I can suggest a private Orbis draft here.</p>
+      <p class="coda-disclaimer">Companion preview only. Coda isn't monitoring your roleplay yet.</p>
+      <button type="button" class="chip-button" id="codaSoundSettings">Notification sound settings</button>
+    </div>
+    <button type="button" id="codaButton" class="coda-orb" aria-label="Open Coda companion preview" aria-expanded="false" aria-controls="codaBubble" title="Coda: Hey! Listen!"><span aria-hidden="true">🐾</span><span class="coda-orb-label">Coda</span></button>
+  </section>
   <dialog id="styleDialog" aria-labelledby="styleHeading"><form method="dialog" class="sheet"><div class="sheet-heading"><h2 id="styleHeading">Scene &amp; style</h2><button class="quiet" type="submit" aria-label="Close">✕</button></div>
     <p class="muted">Make the story comfortable to read. These controls affect presentation only.</p>
     <fieldset><legend>Reading theme</legend><div class="theme-choices"><label><input type="radio" name="theme" value="lamplight"> Lamplight</label><label><input type="radio" name="theme" value="daylight"> Daylight</label></div></fieldset>
     <label for="fontControl" class="setting-label">Story text size <output id="fontOutput"></output></label><input type="range" id="fontControl" min="16" max="26" step="1">
+    <fieldset class="sound-options">
+      <legend>Coda's Hey! Listen! alert</legend>
+      <p class="muted">Choose the chime you hear when Coda has a discovery. No story listening is active yet.</p>
+      <label><input type="radio" name="codaSound" value="coda"> Coda's original chime</label>
+      <label><input type="radio" name="codaSound" value="custom"> My own ringtone (MP3, WAV or OGG)</label>
+      <label><input type="radio" name="codaSound" value="silent"> Silent notification</label>
+      <div class="coda-upload-controls">
+        <button type="button" id="codaUploadButton" class="quiet">Choose sound file</button>
+        <button type="button" id="codaRemoveButton" class="quiet">Remove custom sound</button>
+      </div>
+      <p id="codaFileName" class="sound-file-name" aria-live="polite">No custom file chosen</p>
+      <label class="setting-label" for="codaVolume">Volume <output id="codaVolumeValue"></output></label>
+      <input type="range" id="codaVolume" min="0" max="100" step="5">
+      <button type="button" id="codaTestButton" class="chip-button">▶ Test sound</button>
+      <p class="muted">Custom files stay in this browser on this device, scoped to your Orbis account.</p>
+    </fieldset>
     <div class="sheet-foot"><button class="primary" type="submit">Done</button></div>
   </form></dialog>
   <dialog id="waitDialog" aria-labelledby="waitHeading"><form method="dialog" class="sheet"><div class="sheet-heading"><h2 id="waitHeading">Wait</h2><button class="quiet" type="submit" aria-label="Close">✕</button></div>
@@ -109,6 +142,7 @@ root.innerHTML = `
     <div class="sheet-foot"><button class="primary" type="submit">Back to story</button></div>
   </form></dialog>
   <input id="fileInput" type="file" accept=".json,application/json" hidden>
+  <input id="codaAudioInput" type="file" accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg" hidden>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 `;
 
@@ -128,6 +162,41 @@ const closeRail = () => {
   $("#railScrim").classList.remove("show");
   $("#railButton").setAttribute("aria-expanded", "false");
 };
+function saveSoundSettings() {
+  try {
+    soundSettings = storeSoundPreferences(soundUserId, soundSettings);
+  } catch {
+    toast("Your browser blocked saving the notification preference.");
+  }
+  updateSoundSettings();
+}
+function updateSoundSettings() {
+  root.querySelectorAll('input[name="codaSound"]').forEach(input => {
+    input.checked = input.value === soundSettings.mode;
+  });
+  $("#codaVolume").value = String(Math.round(soundSettings.volume * 100));
+  $("#codaVolumeValue").value = `${Math.round(soundSettings.volume * 100)}%`;
+  $("#codaFileName").textContent = soundSettings.customName
+    ? `Local file: ${soundSettings.customName}`
+    : "No custom file chosen";
+  $("#codaTestButton").disabled = soundBusy;
+  $("#codaTestButton").textContent = soundBusy ? "Playing…" : "▶ Test sound";
+  $("#codaRemoveButton").disabled = !soundSettings.customName;
+}
+async function testCodaSound() {
+  if (soundBusy) return;
+  soundBusy = true;
+  updateSoundSettings();
+  try {
+    const result = await playCodaSound(soundSettings, soundUserId);
+    if (result === "silent") toast("Silent mode is on. Coda won't make a sound.");
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "Unable to play the ringtone.");
+  } finally {
+    soundBusy = false;
+    updateSoundSettings();
+  }
+}
 function updateTheme() {
   document.documentElement.dataset.theme = theme;
   document.documentElement.style.setProperty("--prose-size", `${fontSize}px`);
@@ -281,6 +350,52 @@ $("#fontControl").addEventListener("input", event => {
   fontSize = Math.min(26, Math.max(16, Number(event.target.value) || 20));
   setPreference("font", String(fontSize)); updateTheme();
 });
+$("#codaButton").addEventListener("click", () => {
+  const bubble = $("#codaBubble");
+  bubble.hidden = !bubble.hidden;
+  $("#codaButton").setAttribute("aria-expanded", String(!bubble.hidden));
+  // Play only on a direct click, not on each generation or automatic popup.
+  if (!bubble.hidden) void testCodaSound();
+});
+$("#codaDismiss").addEventListener("click", () => {
+  $("#codaBubble").hidden = true;
+  $("#codaButton").setAttribute("aria-expanded", "false");
+});
+$("#codaSoundSettings").addEventListener("click", () => openDialog("#styleDialog"));
+root.querySelectorAll('input[name="codaSound"]').forEach(input => input.addEventListener("change", () => {
+  soundSettings.mode = input.value;
+  saveSoundSettings();
+}));
+$("#codaVolume").addEventListener("input", event => {
+  soundSettings.volume = Number(event.target.value) / 100;
+  saveSoundSettings();
+});
+$("#codaUploadButton").addEventListener("click", () => $("#codaAudioInput").click());
+$("#codaAudioInput").addEventListener("change", async event => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const saved = await saveCustomRingtone(soundUserId, file);
+    soundSettings = { ...soundSettings, mode: "custom", customName: saved.name };
+    saveSoundSettings();
+    toast("Custom sound saved on this device. Test it to hear Coda.");
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "Unable to save ringtone.");
+  } finally {
+    event.target.value = "";
+  }
+});
+$("#codaRemoveButton").addEventListener("click", async () => {
+  try {
+    await deleteCustomRingtone(soundUserId);
+    soundSettings = { ...soundSettings, mode: "coda", customName: "" };
+    saveSoundSettings();
+    toast("Custom sound removed from this browser.");
+  } catch {
+    toast("Unable to remove the saved custom sound.");
+  }
+});
+$("#codaTestButton").addEventListener("click", () => void testCodaSound());
 $("#exportButton").addEventListener("click", () => {
   $(".overflow").open = false;
   if (!state) { toast("No readable story to export. Browser data was not overwritten."); return; }
@@ -332,6 +447,7 @@ $("#railScrim").addEventListener("click", closeRail);
 $("#closeRail").addEventListener("click", closeRail);
 document.addEventListener("keydown", event => { if (event.key === "Escape") { closeRail(); hideToast(); } });
 updateTheme();
+updateSoundSettings();
 render();
 if (loadError) toast(loadError);
 // An Ember tab must stop showing private material when its Orbis session ends.

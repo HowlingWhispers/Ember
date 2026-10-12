@@ -155,12 +155,14 @@ export async function playCodaSound(settings, userId) {
   const audio = new Audio(url);
   audio.volume = sound.volume;
   try {
-    await audio.play();
-    // Release the temporary blob URL once playback ends; don't leave copies around.
-    await new Promise((resolve, reject) => {
+    // Register end/error listeners before play() so a short clip cannot finish
+    // before its playback promise settles.
+    const ended = new Promise((resolve, reject) => {
       audio.addEventListener("ended", resolve, { once: true });
       audio.addEventListener("error", () => reject(new Error("This audio file could not be played.")), { once: true });
     });
+    await audio.play();
+    await ended;
     return "custom";
   } finally {
     audio.pause();
