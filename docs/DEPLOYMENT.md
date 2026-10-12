@@ -77,7 +77,7 @@ and redirects to `/ember/`.
 - Anonymous `GET /ember/src/app.js` and `GET /ember/assets/sounds/hey-listen.mp3` are denied.
 - Authenticated `GET /ember/assets/sounds/hey-listen.mp3` returns MP3 bytes with `audio/mpeg`; the app CSP allows `media-src 'self' blob:`.
 - Coda's Hey! Listen! clip can be selected and tested; only locally uploaded user ringtones stay in IndexedDB.
-- Opening `/ember/` directly launches `mode=sandbox` with no attached world, NPCs, or starting narrator.
+- Opening `/ember/` directly launches `mode=sandbox` with no attached world, NPCs, or starting narrator, **even if an earlier world/character Ember cookie exists**. Package launches redirect to `/ember/scene` so the main address remains the blank sandbox entry.
 - Orbis Character button launches `mode=character`, without travel and quest controls.
 - Orbis World button launches `mode=world`, with the optional world rail.
 - A ticket cannot be redeemed twice and never appears in the URL.

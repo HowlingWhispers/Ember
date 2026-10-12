@@ -140,7 +140,7 @@ test('creates an HttpOnly scoped cookie and serves distinct character launch', a
   const app=await fixture('character');t.after(()=>app.close());
   const start=await app.postLaunch();
   assert.equal(start.status,303);
-  assert.equal(start.headers.get('location'),'/ember/');
+  assert.equal(start.headers.get('location'),'/ember/scene');
   const header=start.headers.get('set-cookie');
   assert.match(header,/HttpOnly/);assert.match(header,/SameSite=Lax/);assert.match(header,/Path=\/ember\//);
   const cookie=header.split(';')[0];
@@ -150,7 +150,10 @@ test('creates an HttpOnly scoped cookie and serves distinct character launch', a
   const info=await session.json();
   assert.equal(info.mode,'character');assert.equal(info.asset.name,'Ragna Holt');
   assert.equal(info.linkId,undefined);
-  const html=await fetch(app.base+'/ember/',{headers:authHeaders});
+  const direct=await fetch(app.base+'/ember/',{headers:authHeaders,redirect:'manual'});
+  assert.equal(direct.status,302);
+  assert.equal(direct.headers.get('location'),'https://lib.thehowlingwhispers.com/ember/connect');
+  const html=await fetch(app.base+'/ember/scene',{headers:authHeaders});
   assert.equal(html.status,200);
   assert.match(await html.text(),/bootstrap\.js/);
   assert.equal((await fetch(app.base+'/ember/.git/config',{headers:authHeaders})).status,404);
@@ -167,6 +170,7 @@ test('a package-free sandbox receives a private Ember session and a blank UI',as
   const app=await fixture('sandbox');t.after(()=>app.close());
   const launched=await app.postLaunch();
   assert.equal(launched.status,303);
+  assert.equal(launched.headers.get('location'),'/ember/');
   const cookie=launched.headers.get('set-cookie').split(';')[0];
   const response=await fetch(app.base+'/ember/api/session',{headers:{Cookie:cookie}});
   assert.equal(response.status,200);

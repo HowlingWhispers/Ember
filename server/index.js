@@ -16,6 +16,8 @@ const COOKIE = 'ember.sid';
 const SESSION_TTL = 8 * 60 * 60_000;
 const ALLOWED_FILES = new Map([
   ['/ember/', ['index.html', 'text/html; charset=utf-8']],
+  // Package sessions use a separate address so direct /ember/ always means sandbox.
+  ['/ember/scene', ['index.html', 'text/html; charset=utf-8']],
   ['/ember/src/bootstrap.js', ['src/bootstrap.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/app.js', ['src/app.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/engine.js', ['src/engine.js', 'text/javascript; charset=utf-8']],
@@ -160,7 +162,7 @@ export function createEmberServer({
         const sid = randomBytes(32).toString('base64url');
         sessions.set(sha(sid), { linkId: context.linkId, userId: context.userId, assetId: context.asset?.id ?? null, mode: context.mode, expiresAt: Date.now() + SESSION_TTL });
         response.writeHead(303, {
-          Location: '/ember/',
+          Location: context.mode === 'sandbox' ? '/ember/' : '/ember/scene',
           'Set-Cookie': `${COOKIE}=${sid}; Path=/ember/; HttpOnly; SameSite=Lax${secureCookie ? '; Secure' : ''}; Max-Age=${SESSION_TTL / 1000}`,
         });
         return response.end();
@@ -170,6 +172,10 @@ export function createEmberServer({
       // Authentication is mandatory for all app assets and APIs. Never serve
       // the browser shell merely because a cookie *exists*.
       const context = await authenticate(request);
+      if (method === 'GET' && path === '/ember/' && context?.mode !== 'sandbox') {
+        response.writeHead(302, { Location: orbisConnectUrl });
+        return response.end();
+      }
       if (!context) {
         if (method === 'GET' && path === '/ember/') {
           // Ember is an application, not an asset-only launcher. Send browsers
