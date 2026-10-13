@@ -67,7 +67,8 @@ function securityHeaders(response) {
 function launchFailure(stage, status, response) {
   // Never log launch tickets, sessions, identifiers or story content.
   console.warn(`[ember-launch] stage=${stage} status=${status}`);
-  return respond(response, status, { error: 'Ember launch failed. Return to Orbis and try again.', stage });
+  const page = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ember launch failed</title></head><body><main><h1>Ember could not open</h1><p>The handoff failed at ${stage}. Return to Orbis and try again.</p><p><a href="https://lib.thehowlingwhispers.com/">Back to Orbis</a></p></main></body></html>`;
+  return respond(response, status, page, 'text/html; charset=utf-8');
 }
 
 function respond(response, status, data, type = 'application/json; charset=utf-8') {
