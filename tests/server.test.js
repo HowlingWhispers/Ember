@@ -99,6 +99,21 @@ test('rejects untrusted form origin and malformed ticket', async t => {
   assert.equal((await app.postLaunch('bad')).status,400);
   assert.equal(app.exchangeCalls(),0);
 });
+test('launch failures render a retry page without exposing the ticket', async t => {
+  const app = await fixture(); t.after(() => app.close());
+  const response = await fetch(app.base + '/ember/launch', {
+    method: 'POST',
+    headers: { Origin: 'https://lib.thehowlingwhispers.com', 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ ticket: 'invalid-secret-ticket' }),
+  });
+  assert.equal(response.status, 400);
+  assert.match(response.headers.get('content-type'), /text\/html/);
+  const page = await response.text();
+  assert.match(page, /Ember could not open/);
+  assert.match(page, /Back to Orbis/);
+  assert.doesNotMatch(page, /invalid-secret-ticket/);
+  assert.equal(app.exchangeCalls(), 0);
+});
 test('allows a same-site top-level form POST with an omitted Origin header', async t => {
   // A browser can redact Origin on a cross-origin navigation while preserving
   // unforgeable Fetch Metadata. This is a real Orbis -> Ember launch path.
