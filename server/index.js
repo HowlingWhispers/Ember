@@ -64,6 +64,12 @@ function securityHeaders(response) {
   response.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; media-src 'self' blob:; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
 }
 
+function launchFailure(stage, status, response) {
+  // Never log launch tickets, sessions, identifiers or story content.
+  console.warn(`[ember-launch] stage=${stage} status=${status}`);
+  return respond(response, status, { error: 'Ember launch failed. Return to Orbis and try again.', stage });
+}
+
 function respond(response, status, data, type = 'application/json; charset=utf-8') {
   response.writeHead(status, { 'Content-Type': type });
   response.end(type.startsWith('application/json') ? JSON.stringify(data) : data);
@@ -183,17 +189,18 @@ export function createEmberServer({
     try {
       if (path === '/ember/launch' && method === 'POST') {
         if (!isTrustedLaunchNavigation(request, orbisOrigin)) {
-          return respond(response, 403, { error: 'Invalid launch origin.' });
+          return launchFailure('origin', 403, response);
         }
         if (!String(request.headers['content-type'] ?? '').startsWith('application/x-www-form-urlencoded')) {
-          return respond(response, 415, { error: 'Expected a form submission.' });
+          return launchFailure('content-type', 415, response);
         }
         const ticket = new URLSearchParams(await readBody(request)).get('ticket');
-        if (!safeSessionId(ticket)) return respond(response, 400, { error: 'Invalid launch ticket.' });
+        if (!safeSessionId(ticket)) return launchFailure('ticket-format', 400, response);
         const context = await orbis('redeem', { ticket });
-        if (!context) return respond(response, 401, '<h1>Launch expired</h1><p>Return to Orbis and launch again.</p>', 'text/html; charset=utf-8');
+        if (!context) return launchFailure('ticket-redeem', 401, response);
         const sid = randomBytes(32).toString('base64url');
         sessions.set(sha(sid), { linkId: context.linkId, userId: context.userId, assetId: context.asset?.id ?? null, mode: context.mode, expiresAt: Date.now() + SESSION_TTL });
+        console.info(`[ember-launch] stage=accepted mode=${context.mode}`);
         response.writeHead(303, {
           Location: context.mode === 'sandbox' ? '/ember/' : '/ember/scene',
           'Set-Cookie': `${COOKIE}=${sid}; Path=/ember/; HttpOnly; SameSite=Lax${secureCookie ? '; Secure' : ''}; Max-Age=${SESSION_TTL / 1000}`,
@@ -271,6 +278,7 @@ export function createEmberServer({
       }
       return respond(response, 404, { error: 'Not found.' });
     } catch (error) {
+      if (path === '/ember/launch' && method === 'POST') console.error(`[ember-launch] stage=bridge status=${error?.status ?? 503}`);
       // Fail closed on an unavailable Orbis bridge; never serve cached private assets.
       return respond(response, error?.status ?? 503, { error: 'Orbis authorization is temporarily unavailable.' });
     }
