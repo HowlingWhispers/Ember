@@ -6,7 +6,7 @@
   "description": "Independent freeform living-adventure browser shell",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "check": "node --check src/engine.js && node --check src/storage.js && node --check src/app.js && node --check server/index.js && node --check src/bootstrap.js && node --check src/coda-sound.js && node --check src/asset-import.js && node --check src/asset-store.js && node --check src/lore-engine.js && node --check src/library-ui.js && node --check src/asset-backup.js && node --check src/asset-edit.js && node --check src/asset-editor-ui.js && node --check src/context-compiler.js",
+    "check": "node --check src/engine.js && node --check src/storage.js && node --check src/app.js && node --check server/index.js && node --check src/bootstrap.js && node --check src/coda-sound.js && node --check src/asset-import.js && node --check src/asset-store.js && node --check src/lore-engine.js && node --check src/library-ui.js && node --check src/asset-backup.js && node --check src/asset-edit.js && node --check src/asset-editor-ui.js && node --check src/context-compiler.js && node --check server/novelai.js",
     "start:api": "node server/index.js"
   },
   "engines": {
