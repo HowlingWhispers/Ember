@@ -1,4 +1,4 @@
-import { createStory, createStoryFromLaunch, addPlayerTurn, addNarratorTurn, addJournalNote, advanceTime, formatClock, MAX_INPUT, cleanNarration } from "./engine.js";
+import { createStory, createStoryFromLaunch, addPlayerTurn, addNarratorTurn, addJournalNote, advanceTime, formatClock, MAX_INPUT, cleanNarration, wrapComposerSelection, exitComposerPair } from "./engine.js";
 import { configureStoryScope, loadStory, persistStory, getPreference, setPreference, importStory, exportStory } from "./storage.js";
 import {
   readSoundPreferences, storeSoundPreferences, saveCustomRingtone,
@@ -11,7 +11,6 @@ if (liveSession) configureStoryScope(liveSession);
 document.documentElement.dataset.emberMode = liveSession?.mode ?? "preview";
 let { state, error: loadError } = loadStory();
 let activeTab = "here";
-let mode = "action";
 let theme = getPreference("theme", "lamplight") === "daylight" ? "daylight" : "lamplight";
 // Phones: keep this query identical to the "Phone layout" block in styles.css.
 const PHONE_QUERY = "(max-width: 600px), (pointer: coarse) and (max-height: 500px)";
@@ -27,10 +26,8 @@ let soundSettings = readSoundPreferences(soundUserId);
 let soundBusy = false;
 let narrationBusy = false;
 let narrationError = "";
-const modes = ["action", "speech", "thought"];
 const tabs = ["here", "places", "people", "journal", "almanac"];
 const safe = value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
-const titleCase = text => text.charAt(0).toUpperCase() + text.slice(1);
 
 root.innerHTML = `
   <div class="ember-shell">
@@ -72,14 +69,14 @@ root.innerHTML = `
               <button type="button" id="goButton" class="chip-button">↗ Go</button>
               <button type="button" id="waitButton" class="chip-button">◷ Wait</button>
               <button type="button" id="passButton" class="chip-button" disabled title="Available when a narrator is connected"><span class="long-label">Pass the turn</span><span class="short-label">Pass</span></button>
-              <button type="button" id="modeCycle" class="chip-button mode-cycle phone-only" data-current-mode="action" aria-label="Writing mode: Action. Tap to change.">Action</button>
+              
             </div>
           </div>
           <div class="composer">
-            <div class="mode-switch" id="modeSwitch" aria-label="Writing mode">
-              <button type="button" data-mode="action" class="selected">Action</button>
-              <button type="button" data-mode="speech">Speech</button>
-              <button type="button" data-mode="thought">Thought</button>
+            <div class="mode-switch" id="modeSwitch" aria-label="Insert roleplay formatting">
+              <button type="button" data-format="action">*Action*</button>
+              <button type="button" data-format="speech">&quot;Speech&quot;</button>
+              <button type="button" data-format="thought">(Thought)</button>
             </div>
             <label class="visually-hidden" for="playerInput">Your freeform roleplay</label>
             <textarea id="playerInput" rows="2" maxlength="${MAX_INPUT}" placeholder="What do you do, say, or think?"></textarea>
@@ -346,7 +343,7 @@ function render() {
     el.className = `turn ${turn.mode === "narrator" ? "narrator" : "player"} ${turn.mode}`;
     const label = document.createElement("div");
     label.className = "turn-label";
-    label.textContent = turn.mode === "narrator" ? (turn.source === "provider" ? "STORY" : "PREVIEW OPENING") : `YOU · ${turn.mode.toUpperCase()}`;
+    label.textContent = turn.mode === "narrator" ? (turn.source === "provider" ? "STORY" : "PREVIEW OPENING") : "YOU";
     const prose = document.createElement("p");
     prose.className = "turn-prose";
     prose.textContent = turn.source === "provider" ? cleanNarration(turn.text) : turn.text;
@@ -404,7 +401,7 @@ function renderRail() {
 $("#sendButton").addEventListener("click", () => {
   if (!state || narrationBusy) return;
   try {
-    const next = addPlayerTurn(state, mode, $("#playerInput").value);
+    const next = addPlayerTurn(state, "action", $("#playerInput").value);
     narrationError = "";
     $("#playerInput").value = "";
     resizeComposer();
@@ -417,7 +414,20 @@ $("#sendButton").addEventListener("click", () => {
 });
 $("#retryNarration").addEventListener("click", () => void generateLastTurn());
 $("#playerInput").addEventListener("keydown", event => {
-  if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); $("#sendButton").click(); }
+  if (event.key !== "Enter" || event.isComposing) return;
+  const field = $("#playerInput");
+  if (!event.shiftKey && !event.ctrlKey && !event.metaKey && field.selectionStart === field.selectionEnd) {
+    const result = exitComposerPair(field.value, field.selectionStart);
+    if (result) {
+      event.preventDefault();
+      field.value = result.text;
+      field.setSelectionRange(result.caret, result.caret);
+      resizeComposer();
+      updateInputCount();
+      return;
+    }
+  }
+  if (event.ctrlKey || event.metaKey) { event.preventDefault(); $("#sendButton").click(); }
 });
 function resizeComposer() {
   const field = $("#playerInput");
@@ -440,23 +450,23 @@ $("#playerInput").addEventListener("input", () => {
   updateInputCount();
   renderNarrationState();
 });
-// Desktop tabs and the phone chip drive the same writing mode.
-function setMode(next) {
-  if (!modes.includes(next)) return;
-  mode = next;
-  $("#modeSwitch").querySelectorAll("button").forEach(btn => btn.classList.toggle("selected", btn.dataset.mode === mode));
-  $("#modeCycle").textContent = titleCase(mode);
-  $("#modeCycle").dataset.currentMode = mode;
-  $("#modeCycle").setAttribute("aria-label", `Writing mode: ${titleCase(mode)}. Tap to change.`);
-}
-$("#modeSwitch").addEventListener("click", event => {
-  const button = event.target.closest("[data-mode]");
-  if (!button) return;
-  setMode(button.dataset.mode);
-  $("#playerInput").focus();
+// Toolbar selection is preserved on desktop and touch devices.
+$("#modeSwitch").addEventListener("mousedown", event => {
+  if (event.target.closest("[data-format]")) event.preventDefault();
 });
-// Focus stays where it was, so the soft keyboard doesn't jump open or closed.
-$("#modeCycle").addEventListener("click", () => setMode(modes[(modes.indexOf(mode) + 1) % modes.length]));
+$("#modeSwitch").addEventListener("click", event => {
+  const kind = event.target.closest("[data-format]")?.dataset.format;
+  if (!kind) return;
+  const field = $("#playerInput");
+  const result = wrapComposerSelection(field.value, field.selectionStart, field.selectionEnd, kind);
+  if (!result || result.text.length > MAX_INPUT) return;
+  field.value = result.text;
+  field.focus();
+  field.setSelectionRange(result.start, result.end);
+  resizeComposer();
+  updateInputCount();
+  renderNarrationState();
+});
 $("#railContent").addEventListener("submit", event => {
   if (event.target.id !== "noteForm") return;
   event.preventDefault();
