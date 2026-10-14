@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { importEmberAsset, parseV2Card, parseStandaloneLorebook } from "../src/asset-import.js";
 import { activateLorebooks, checkLoreEntry } from "../src/lore-engine.js";
+import { exportLocalLibrary,parseLocalLibraryBackup } from "../src/asset-backup.js";
 
 const v2 = {
   spec:"chara_card_v2",spec_version:"2.0",
@@ -76,4 +77,16 @@ test("PNG metadata parser rejects PNGs without V2 and corrupted bytes",()=>{
  assert.throws(()=>importEmberAsset(tiny,"portrait.png"),/PNG|checksum/);
  const corrupt=new Uint8Array(tiny);corrupt[20]^=12;
  assert.throws(()=>importEmberAsset(corrupt,"corrupt.png"),/PNG/);
+});
+
+test("local backup restores original character and standalone lorebook bytes",()=>{
+ const a=importEmberAsset(bytes(v2),"Heather.json");
+ const b=importEmberAsset(bytes(standalone),"World.json");
+ const archive=exportLocalLibrary([a,b]);
+ const restored=parseLocalLibraryBackup(archive);
+ assert.equal(restored.length,2);
+ assert.deepEqual(restored[0].sourceBytes,a.sourceBytes);
+ assert.deepEqual(restored[1].sourceBytes,b.sourceBytes);
+ assert.equal(restored[1].fields.entries.length,13);
+ assert.throws(()=>parseLocalLibraryBackup(archive.replace("ember-local-asset-library","unrelated-backup")),/supported/);
 });
