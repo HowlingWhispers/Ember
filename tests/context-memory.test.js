@@ -87,7 +87,7 @@ test("pinning memory never automatically invents a summary or copies journal not
 test("initial opening is not invented when a story has no preview turn",()=>{
   const s=makeStory(30,400);
   s.turns.shift();
-  const p=compileEmberContext({story:s,assets:[npc],bindings,
+  const p=compileEmberContext({story:s,assets:[npc,persona],bindings,
     maxChars:EMBER_CONTEXT_LIMIT});
   assert.equal(p.openingExcerptIncluded,false);
 });
