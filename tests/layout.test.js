@@ -170,13 +170,14 @@ test("story copy uses async clipboard with a manual read-only selection fallback
 });
 
 
-test("older provider turns display Delete while Regenerate stays limited to the latest AI reply",()=>{
+test("older provider replies can rewind the story, while rerolls remain latest-only",()=>{
   assert.match(app,/\["delete","✕","Delete generated reply"\]/);
   assert.match(app,/if \(action==="delete" && !isProvider\) continue/);
   assert.match(app,/if \(action==="regenerate" && !latest\) continue/);
-  assert.match(app,/index<state\.turns\.length-1/);
-  assert.match(app,/Delete this older AI reply\?/);
-  assert.match(app,/All later player messages and AI replies will be kept unchanged/);
+  assert.match(app,/const removedCount=state\.turns\.length-index/);
+  assert.match(app,/Rewind the story here\?/);
+  assert.match(app,/later messages and AI replies will be permanently deleted/);
+  assert.match(app,/Your message immediately before this reply will be kept/);
   assert.match(app,/setStory\(removeProviderTurn\(state,turn\.id\)\)/);
   assert.match(app,/if\(turn\.source!=="provider"\)return/);
 });
