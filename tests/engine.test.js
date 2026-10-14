@@ -183,9 +183,9 @@ test("player message editing validates ownership and the 8,000-character input l
 });
 
 
-test("older generated replies can be deleted individually without truncating later story history",()=>{
+test("deleting an older generation removes that turn and all later story turns",()=>{
   const first=addPlayerTurn(createStory(),"speech",'"Mi Lord"');
-  const withFirst=addNarratorTurn(first,first.turns.at(-1).id,'Rainier offers a drink.');
+  const withFirst=addNarratorTurn(first,first.turns.at(-1).id,"Rainier offers a drink.");
   const firstReply=withFirst.turns.at(-1);
   const second=addPlayerTurn(withFirst,"action","I mention the house.");
   const withSecond=addNarratorTurn(second,second.turns.at(-1).id,"Rainier recalls the burned house.");
@@ -195,23 +195,30 @@ test("older generated replies can be deleted individually without truncating lat
   const thirdReply=withThird.turns.at(-1);
 
   const withoutFirst=removeProviderTurn(withThird,firstReply.id);
-  assert.equal(withoutFirst.turns.length,withThird.turns.length-1);
+  assert.deepEqual(withoutFirst.turns,withThird.turns.slice(0,2),
+    "Opening and triggering player message survive, all future turns disappear");
+  assert.equal(withoutFirst.turns.at(-1).text,'"Mi Lord"');
   assert.equal(withoutFirst.revision,withThird.revision+1);
-  assert.deepEqual(withoutFirst.turns,withThird.turns.filter(t=>t.id!==firstReply.id));
-  assert.deepEqual(withThird.turns.at(-1),thirdReply,"Source story was not modified");
+  assert.deepEqual(withThird.turns.at(-1),thirdReply,"The original saved story is not mutated");
   assert.deepEqual(validateStory(withoutFirst).turns,withoutFirst.turns);
   assert.deepEqual(importStory(exportStory(withoutFirst)).turns,withoutFirst.turns,
-    "Deletion must persist through local backup and reload");
+    "Truncation must persist through local backup and reload");
 
   const withoutMiddle=removeProviderTurn(withThird,secondReply.id);
+  assert.deepEqual(withoutMiddle.turns,withThird.turns.slice(0,4));
+  assert.equal(withoutMiddle.turns.at(-1).text,"I mention the house.");
   assert.ok(withoutMiddle.turns.some(t=>t.id===firstReply.id));
-  assert.ok(withoutMiddle.turns.some(t=>t.id===thirdReply.id));
   assert.ok(!withoutMiddle.turns.some(t=>t.id===secondReply.id));
-  assert.deepEqual(withoutMiddle.turns.at(-1),thirdReply);
+  assert.ok(!withoutMiddle.turns.some(t=>t.id===thirdReply.id));
 
   const withoutLatest=removeProviderTurn(withThird,thirdReply.id);
+  assert.deepEqual(withoutLatest.turns,withThird.turns.slice(0,-1));
   assert.equal(withoutLatest.turns.at(-1).source,"player");
   assert.equal(withoutLatest.turns.at(-1).text,"Who was responsible?");
+  const continued=addNarratorTurn(withoutMiddle,withoutMiddle.turns.at(-1).id,
+    "Rainier answers differently.");
+  assert.equal(continued.turns.at(-1).text,"Rainier answers differently.");
+  assert.deepEqual(continued.turns.slice(0,-1),withoutMiddle.turns);
 });
 
 test("arbitrary reply deletion refuses player turns and unknown IDs",()=>{
