@@ -64,3 +64,35 @@
   .asset-detail-top h3 { font-size:17px; }
   .asset-content { max-height:42dvh; padding:8px; }
 }
+
+
+/* Native edit-copy forms. Source records remain immutable; edited copies are new assets. */
+.asset-editor { display:flex; flex-direction:column; gap:14px; }
+.asset-editor h3 { margin:0; }
+.asset-edit-field { display:flex; flex-direction:column; gap:6px; min-width:0; font-size:13px; font-weight:600; }
+.asset-edit-field input, .asset-edit-field textarea {
+  box-sizing:border-box; width:100%; min-width:0; padding:10px 12px;
+  background:var(--paper); color:var(--text); border:1px solid var(--border);
+  border-radius:8px; font:400 13px/1.5 inherit; font-family:inherit; font-size:13px;
+}
+.asset-edit-field textarea { resize:vertical; line-height:1.55; }
+.asset-edit-field input:focus-visible, .asset-edit-field textarea:focus-visible {
+  outline:2px solid var(--gold); outline-offset:2px;
+}
+.asset-edit-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.asset-edit-group { border:1px solid var(--border); border-radius:10px; padding:12px; min-width:0; }
+.asset-edit-group legend { color:var(--gold); font-weight:600; font-size:13px; padding:0 6px; }
+.asset-edit-check { display:flex; align-items:center; gap:8px; font-size:12px; }
+.asset-edit-entry { border-bottom:1px solid var(--border); padding:10px 0; }
+.asset-edit-entry summary { cursor:pointer; font-weight:600; overflow-wrap:anywhere; font-size:13px; }
+.asset-edit-entry[open] { display:flex; flex-direction:column; gap:12px; }
+.asset-edit-entry[open] summary { display:list-item; }
+.asset-greeting-row { display:flex; flex-direction:column; gap:6px; padding:10px 0; border-bottom:1px solid var(--border); }
+.asset-edit-actions { display:flex; flex-wrap:wrap; gap:10px; padding:8px 0; }
+.asset-secondary { border:1px solid var(--border); background:var(--paper); color:var(--text);
+  border-radius:9px; padding:10px 12px; font-size:12px; font-weight:600; }
+.asset-secondary:hover { background:var(--paper-warm); border-color:var(--gold); }
+@media(max-width:640px) {
+  .asset-edit-grid { grid-template-columns:1fr; }
+  .asset-edit-actions > button { flex:1; }
+}
