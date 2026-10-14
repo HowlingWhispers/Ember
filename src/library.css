@@ -73,7 +73,7 @@
 .asset-edit-field input, .asset-edit-field textarea {
   box-sizing:border-box; width:100%; min-width:0; padding:10px 12px;
   background:var(--paper); color:var(--text); border:1px solid var(--border);
-  border-radius:8px; font:400 13px/1.5 inherit; font-family:inherit; font-size:13px;
+  border-radius:8px; font-family:inherit; font-size:13px; line-height:1.5;
 }
 .asset-edit-field textarea { resize:vertical; line-height:1.55; }
 .asset-edit-field input:focus-visible, .asset-edit-field textarea:focus-visible {
