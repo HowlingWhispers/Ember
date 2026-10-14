@@ -129,13 +129,15 @@ test("Account & NovelAI header link uses readable Ember colors in every link sta
 });
 
 
-test("player messages provide Copy and Edit actions, but no destructive provider reroll actions",()=>{
+test("player turns provide Copy, Edit and Delete, but only AI turns offer Regenerate",()=>{
   assert.match(app,/if \(turn\.source === "provider" \|\| turn\.source === "player"\)/);
   assert.match(app,/isProvider=turn\.source==="provider"/);
-  assert.match(app,/if \(action==="delete" && !isProvider\) continue/);
+  assert.match(app,/\["delete","✕","Delete turn and all later turns"\]/);
   assert.match(app,/if \(action==="regenerate" && !latest\) continue/);
+  assert.doesNotMatch(app,/if \(action==="delete" && !isProvider\) continue/);
   assert.match(app,/item\.source==="provider" \|\| item\.source==="player"/);
   assert.match(app,/replacePlayerTurn\(state,turn\.id,field\.value\)/);
+  assert.match(app,/removePlayerTurn\(state,turn\.id\)/);
   assert.match(app,/field\.maxLength=turn\.source==="player" \? MAX_INPUT : 32000/);
   assert.match(app,/title=accessibleTitle/);
 });
@@ -170,14 +172,15 @@ test("story copy uses async clipboard with a manual read-only selection fallback
 });
 
 
-test("older provider replies can rewind the story, while rerolls remain latest-only",()=>{
-  assert.match(app,/\["delete","✕","Delete generated reply"\]/);
-  assert.match(app,/if \(action==="delete" && !isProvider\) continue/);
+test("deleting an AI reply or player message rewinds all newer turns with an accurate warning",()=>{
+  assert.match(app,/\["delete","✕","Delete turn and all later turns"\]/);
   assert.match(app,/if \(action==="regenerate" && !latest\) continue/);
   assert.match(app,/const removedCount=state\.turns\.length-index/);
-  assert.match(app,/Rewind the story here\?/);
-  assert.match(app,/later messages and AI replies will be permanently deleted/);
-  assert.match(app,/Your message immediately before this reply will be kept/);
-  assert.match(app,/setStory\(removeProviderTurn\(state,turn\.id\)\)/);
-  assert.match(app,/if\(turn\.source!=="provider"\)return/);
+  assert.match(app,/Rewind the story by deleting /);
+  assert.match(app,/turn"\+\(removedCount===1\?"":"s"\)/);
+  assert.match(app,/newer messages and replies/);
+  assert.match(app,/Earlier story content will be kept/);
+  assert.match(app,/removePlayerTurn\(state,turn\.id\) : removeProviderTurn\(state,turn\.id\)/);
+  assert.match(app,/Pinned Story Memory is not automatically changed/);
+  assert.match(app,/if\(!window\.confirm\(message\)\)return/);
 });
