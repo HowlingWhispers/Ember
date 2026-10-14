@@ -73,6 +73,27 @@ button:focus-visible, summary:focus-visible, textarea:focus-visible, input:focus
 .story-scroll { flex: 1 1 0; min-width: 0; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .story-inner { max-width: 800px; padding: 45px 40px 70px; margin: 0 auto; }
 .chapter-heading { text-align: center; margin: 0 0 36px; }
+
+/* Visible, high-contrast story sharing; no visited-link purple or hidden menu dependency. */
+.story-share-button { display: inline-flex; align-items: center; justify-content: center;
+  margin-top: 13px; padding: 9px 15px; min-height: 40px; border: 1px solid var(--border);
+  border-radius: 9px; background: var(--paper-warm); color: var(--text);
+  font-size: 12px; font-weight: 650; }
+.story-share-button:hover, .story-share-button:focus-visible {
+  border-color: var(--gold); color: var(--gold); outline-offset: 3px; }
+.story-copy-dialog { width: min(700px,94vw); max-height: 85dvh; padding: 20px;
+  color: var(--text); border: 1px solid var(--border); border-radius: 13px;
+  background: var(--surface); box-shadow: 0 20px 65px var(--shadow); }
+.story-copy-dialog::backdrop { background: rgba(0,0,0,.65); }
+.story-copy-dialog h2 { margin: 0 0 12px; color: var(--text); }
+.story-copy-dialog p { font-size: 13px; line-height: 1.5; color: var(--muted); }
+.story-copy-dialog textarea { width: 100%; min-height: 38dvh; max-height: 55dvh;
+  display: block; padding: 12px; resize: vertical; background: var(--paper);
+  color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+  font: 13px/1.55 ui-monospace, monospace; }
+.story-copy-dialog button { margin-top: 12px; min-height: 40px; padding: 9px 16px;
+  border-radius: 8px; color: var(--text); border: 1px solid var(--gold); background: var(--paper-warm); }
+
 .eyebrow, .panel-kicker, .rail-kicker, .turn-label { font-size: 10px; font-weight: 700; letter-spacing: .18em; color: var(--gold); }
 .ornament { margin: 0 7px; }
 h1, h2, h3 { font-family: Georgia, "Times New Roman", serif; }
