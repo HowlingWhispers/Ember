@@ -5,6 +5,7 @@ import {
   deleteCustomRingtone, playCodaSound,
 } from "./coda-sound.js";
 import { parseCodaCandidate, loadDiscovery, saveDiscovery, shouldDiscover } from "./coda-discovery.js";
+import { mountAssetLibrary } from "./library-ui.js";
 
 const root = document.querySelector("#app");
 const liveSession = globalThis.__EMBER_SESSION__ ?? null;
@@ -41,8 +42,10 @@ root.innerHTML = `
         <span class="world-clock" id="clock"></span>
         <span class="saved" id="saveStatus">● Local preview</span>
         <button class="quiet desktop-only" id="themeButton" type="button" title="Switch Lamplight / Daylight">◐ <span>Theme</span></button>
+        <button class="quiet desktop-only" id="libraryButton" type="button">My Library</button>
         <button class="quiet desktop-only" id="prefsButton" type="button">Scene &amp; style</button>
         <details class="overflow"><summary class="quiet" aria-label="More story options">•••</summary><div class="popover">
+          <button type="button" id="libraryMenuButton">My Library</button>
           <button type="button" id="exportButton">Save to file</button>
           <button type="button" id="importButton">Open saved file</button>
           <button type="button" id="newButton">New story</button>
@@ -112,6 +115,7 @@ root.innerHTML = `
         <nav class="phone-menu phone-only" aria-label="Story menu">
           <p class="phone-menu-status"><span id="phoneSaveStatus">● Saved locally</span><span id="phoneClock"></span></p>
           <div class="phone-menu-actions">
+            <button type="button" data-menu-action="library">My Library</button>
             <button type="button" data-menu-action="style">Scene & style</button>
             <button type="button" data-menu-action="theme">◐ Theme</button>
             <button type="button" data-menu-action="export">Save to file</button>
@@ -708,7 +712,7 @@ $("#newButton").addEventListener("click", () => {
   } catch (err) { toast(`Unable to create story: ${err.message}`); }
 });
 // Phone menu entries reuse the header controls, which phones hide.
-const menuTargets = { style: "#prefsMenuButton", theme: "#themeButton", export: "#exportButton", import: "#importButton", new: "#newButton" };
+const menuTargets = { library: "#libraryMenuButton", style: "#prefsMenuButton", theme: "#themeButton", export: "#exportButton", import: "#importButton", new: "#newButton" };
 root.querySelector(".phone-menu").addEventListener("click", event => {
   const target = menuTargets[event.target.closest("[data-menu-action]")?.dataset.menuAction];
   if (!target) return;
@@ -721,6 +725,9 @@ $("#menuButton").addEventListener("click", () => setRail(!railOpen));
 $("#railScrim").addEventListener("click", closeRail);
 $("#closeRail").addEventListener("click", closeRail);
 document.addEventListener("keydown", event => { if (event.key === "Escape") { closeRail(); hideToast(); } });
+const assetLibrary = mountAssetLibrary({ root, owner: () => liveSession?.userId ?? "local", getStory: () => state });
+$("#libraryButton").addEventListener("click", () => void assetLibrary.open());
+$("#libraryMenuButton").addEventListener("click", () => { $(".overflow").open = false; void assetLibrary.open(); });
 updateTheme();
 updateSoundSettings();
 render();
