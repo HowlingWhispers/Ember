@@ -242,7 +242,7 @@ export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_
 
   const historyBudget=maxChars-intro.length-historyLabel.length-end.length;
   let history=recentEntries(turns,historyBudget);
-  if(!history.length || !history.at(-1)?.content.startsWith("PLAYER:\\n"))
+  if(!history.length || !history.at(-1)?.content.startsWith("PLAYER:\n"))
     throw new Error("The latest player message does not fit Ember's context budget.");
   // Preserve the earliest opening excerpt even after older turns fall out of
   // the rolling history. It is a direct quote, never a synthetic summary.
@@ -253,7 +253,7 @@ export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_
     const candidate="\n\n[EARLIER SCENE OPENING (EXCERPT)]\n"+indentFiction(excerpt)+"\n[END OPENING EXCERPT]";
     if(candidate.length<Math.floor(historyBudget*.18) && historyBudget-candidate.length>850){
       const reduced=recentEntries(turns,historyBudget-candidate.length);
-      if(reduced.length && reduced.at(-1)?.content.startsWith("PLAYER:\\n")){
+      if(reduced.length && reduced.at(-1)?.content.startsWith("PLAYER:\n")){
         history=reduced;earlyBlock=candidate;
       }
     }
