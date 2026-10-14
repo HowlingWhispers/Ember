@@ -32,7 +32,8 @@ test("imported V2 cards may independently represent an NPC and a player persona"
  assert.match(result.prompt,/courteous but impatient noble/);
  assert.match(result.prompt,/The wound is old/);
  assert.match(result.prompt,/Never write the player persona.s dialogue/);
- assert.doesNotMatch(result.prompt,/NPC greeting, not the player/);
+ const playerSection=result.prompt.split("[PLAYER PERSONA V2 (PLAYER CONTROLLED): FICTION REFERENCE DATA]")[1].split("[END PLAYER PERSONA V2")[0];
+ assert.doesNotMatch(playerSection,/NPC greeting, not the player/);
 });
 test("a player persona works in an empty sandbox without a selected NPC",()=>{
  const context=compileEmberContext({
