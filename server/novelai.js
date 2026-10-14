@@ -9,7 +9,7 @@ export class EmberProviderError extends Error {
     this.code=code;
   }
 }
-const stops = ["\nPLAYER:","\nPLAYER (","\nUSER:","\n<|user|>","\nSystem:","\nAnalysis:","\nThinking:"];
+export const NOVELAI_STOPS = Object.freeze(["\nPLAYER:","\nUSER:","\nOPENING:","\n[END TRANSCRIPT]","\n[RECENT STORY TRANSCRIPT]","\n[REPLY STYLE]","\n<|user|>","\nSystem:","\nAnalysis:","\nThinking:"]);
 function resultText(value) {
   if (!value || typeof value !== "object" || !Array.isArray(value.choices)) return "";
   const choice=value.choices[0];
@@ -40,7 +40,7 @@ export async function generateNovelAI({
         headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},
         body:JSON.stringify({
           model,prompt,max_tokens:maxTokens,temperature,top_k:250,top_p:0.95,
-          frequency_penalty:0,presence_penalty:0,stop:stops,stream:false,
+          frequency_penalty:0,presence_penalty:0,stop:NOVELAI_STOPS,stream:false,
         }),
         signal:controller.signal,
       });
@@ -57,7 +57,11 @@ export async function generateNovelAI({
     let payload;
     try {payload=await response.json();}
     catch {throw new EmberProviderError(502,"NOVELAI_INVALID_RESPONSE","NovelAI returned an unreadable reply.");}
-    const text=resultText(payload).replace(/^(?:NARRATOR|ASSISTANT)\s*:\s*/i,"").trim();
+    // Stop lists are also checked locally because individual models may
+    // treat completion stop sequences differently.
+    const raw=resultText(payload).replace(/^(?:NARRATOR|ASSISTANT)\s*:\s*/i,"").trim();
+    const leaked=NOVELAI_STOPS.map(stop=>raw.indexOf(stop)).filter(index=>index>=0);
+    const text=(leaked.length ? raw.slice(0,Math.min(...leaked)) : raw).trim();
     if (!text) throw new EmberProviderError(502,"NOVELAI_EMPTY_REPLY","NovelAI returned an empty reply.");
     if (text.length>32000) throw new EmberProviderError(502,"NOVELAI_OVERSIZED_REPLY","NovelAI returned an oversized reply.");
     const bounded=boundCompletedReply(text,maxWords);
