@@ -87,7 +87,7 @@ test("Ember's library presents personas as selectable V2 cards without changing 
  assert.match(app,/id="personaButton"/);
  assert.match(app,/data-menu-action="persona"/);
  assert.match(app,/function playerPersonaName\(/);
- assert.match(app,/generationStory\.assetSetup\?\.personaId/);
+ assert.match(app,/snapshot\.assetSetup\?\.personaId/);
  assert.match(app,/setStoryPersona\(state,asset\?\.id\?\?null\)/);
 });
 
