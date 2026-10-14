@@ -104,7 +104,7 @@ test("generated replies expose accessible copy, edit, delete and regenerate cont
     assert.match(app,new RegExp('\\["'+action+'","'));
     assert.match(app,new RegExp('action==="'+action+'"'));
   }
-  assert.match(app,/button\.setAttribute\("aria-label",title\)/);
+  assert.match(app,/button\.setAttribute\("aria-label",accessibleTitle\)/);
   assert.match(app,/className="reply-tools"/);
   assert.match(app,/regenerate this reply/i);
   assert.match(css,/\.reply-tools \{/);
@@ -126,4 +126,26 @@ test("Account & NovelAI header link uses readable Ember colors in every link sta
   assert.match(css,/\.top-actions #accountButton:hover\s*\{[^}]*color:\s*var\(--gold\)/);
   assert.match(css,/\.top-actions #accountButton:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--gold\)/);
   assert.match(css,/:root\[data-theme="daylight"\]\s*\{/);
+});
+
+
+test("player messages provide Copy and Edit actions, but no destructive provider reroll actions",()=>{
+  assert.match(app,/if \(turn\.source === "provider" \|\| turn\.source === "player"\)/);
+  assert.match(app,/isProvider=turn\.source==="provider"/);
+  assert.match(app,/if \(\(action==="delete" \|\| action==="regenerate"\) && !latest\) continue/);
+  assert.match(app,/item\.source==="provider" \|\| item\.source==="player"/);
+  assert.match(app,/replacePlayerTurn\(state,turn\.id,field\.value\)/);
+  assert.match(app,/field\.maxLength=turn\.source==="player" \? MAX_INPUT : 32000/);
+  assert.match(app,/title=accessibleTitle/);
+});
+test("generation cleanup restores toolbar interactivity without refreshing the browser",()=>{
+  assert.match(app,/root\.querySelectorAll\("#storyTurns button\[data-reply-action\]"\)\.forEach\(button => \{\s*button\.disabled = narrationBusy;\s*\}\)/);
+  assert.match(app,/finally \{\s*narrationBusy = false;\s*renderNarrationState\(\)/);
+  assert.match(app,/narrationBusy = true;\s*narrationError = "";\s*renderNarrationState\(\)/);
+  assert.match(app,/button\.disabled=narrationBusy/);
+});
+test("historical sent-message edits warn when future narration exists",()=>{
+  assert.match(app,/turn\.source==="player" && currentIndex>=0 && currentIndex<state\.turns\.length-1/);
+  assert.match(app,/Editing it will not rewrite or remove them/);
+  assert.match(app,/state\.revision!==expectedRevision/);
 });
