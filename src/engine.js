@@ -174,6 +174,16 @@ export function addNarratorTurn(state, playerTurnId, rawText) {
  * Story reply controls retain stable IDs and never alter adjacent turns.
  * The caller must persist returned copies after checking the story revision.
  */
+export function replacePlayerTurn(state,turnId,rawText) {
+  const index=state?.turns?.findIndex(turn=>turn.id===turnId && turn.source==="player");
+  if(index<0)throw new Error("Your message was not found.");
+  if(typeof rawText!=="string")throw new Error("Write between 1 and 8,000 characters.");
+  const text=rawText.trim();
+  if(!text || text.length>MAX_INPUT)
+    throw new Error("Write between 1 and 8,000 characters.");
+  return {...state,revision:state.revision+1,turns:state.turns.map((turn,i)=>
+    i===index?{...turn,text}:turn)};
+}
 export function replaceProviderTurn(state,turnId,rawText) {
   const index=state?.turns?.findIndex(turn=>turn.id===turnId && turn.source==="provider");
   if(index<0)throw new Error("Generated reply was not found.");
