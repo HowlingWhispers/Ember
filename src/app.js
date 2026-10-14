@@ -1,4 +1,4 @@
-import { createStory, createStoryFromLaunch, addPlayerTurn, addNarratorTurn, addJournalNote, advanceTime, formatClock, MAX_INPUT, cleanNarration, setStoryMemory, setStoryPersona, replacePlayerTurn, replaceProviderTurn, removeProviderTurn, wrapComposerSelection, exitComposerPair } from "./engine.js";
+import { createStory, createStoryFromLaunch, addPlayerTurn, addNarratorTurn, addJournalNote, advanceTime, formatClock, MAX_INPUT, cleanNarration, setStoryMemory, setStoryPersona, replacePlayerTurn, replaceProviderTurn, removeProviderTurn, removePlayerTurn, wrapComposerSelection, exitComposerPair } from "./engine.js";
 import { configureStoryScope, loadStory, persistStory, getPreference, setPreference, importStory, exportStory } from "./storage.js";
 import {
   readSoundPreferences, storeSoundPreferences, saveCustomRingtone,
@@ -533,16 +533,16 @@ function render() {
       tools.setAttribute("aria-label",isProvider ? "Generated reply controls" : "Your message controls");
       for (const [action,glyph,title] of [
         ["copy","📋","Copy reply"],["edit","✎","Edit reply"],
-        ["delete","✕","Delete generated reply"],["regenerate","↻","Regenerate latest reply"],
+        ["delete","✕","Delete turn and all later turns"],["regenerate","↻","Regenerate latest reply"],
       ]) {
-        if (action==="delete" && !isProvider) continue;
         if (action==="regenerate" && !latest) continue;
         const button=document.createElement("button");
         button.type="button";
         button.className="reply-tool";
         button.dataset.replyAction=action;
         button.dataset.replyId=turn.id;
-        const accessibleTitle=isProvider ? title : (action==="copy" ? "Copy your message" : "Edit your message");
+        const accessibleTitle=action==="delete" ? (isProvider ? "Delete reply and everything after it" : "Delete your message and everything after it")
+          : isProvider ? title : (action==="copy" ? "Copy your message" : "Edit your message");
         button.title=accessibleTitle;
         button.setAttribute("aria-label",accessibleTitle);
         button.textContent=glyph;
@@ -1097,22 +1097,24 @@ $("#storyTurns").addEventListener("click",event=>{
     actions.append(save,cancel);editor.append(field,actions);
     article.append(editor);field.focus();
   } else if (action==="delete") {
-    if(turn.source!=="provider")return;
-    const index=state.turns.findIndex(item=>item.id===turn.id && item.source==="provider");
+    const index=state.turns.findIndex(item=>item.id===turn.id && item.source===turn.source);
     if(index<0)return;
     const removedCount=state.turns.length-index;
-    const hasLaterTurns=removedCount>1;
-    const message=hasLaterTurns
-      ? "Rewind the story here? This AI reply and all "+(removedCount-1)
-        +" later messages and AI replies will be permanently deleted ("+removedCount
-        +" turns total). Your message immediately before this reply will be kept. Continue?"
-      : "Delete the latest AI reply? Your preceding player message will remain, ready to generate a new response.";
+    const isPlayer=turn.source==="player";
+    const what=isPlayer ? "your message" : "this AI reply";
+    const message="Rewind the story by deleting "+what+"? "
+      +removedCount+" turn"+(removedCount===1?"":"s")+" will be permanently removed, including "
+      +Math.max(0,removedCount-1)+" newer messages and replies. "
+      +(isPlayer
+        ? "Earlier story content will be kept. You can write a new message from that point."
+        : "The player message that prompted this reply will be kept. You can generate another response.")
+      +(state.storyMemory?.trim()
+        ? " Pinned Story Memory is not automatically changed; review it if it refers to deleted events." : "")
+      +" Continue?";
     if(!window.confirm(message))return;
     try {
-      setStory(removeProviderTurn(state,turn.id));
-      toast(hasLaterTurns
-        ? "Story rewound by "+removedCount+" turns. You can now continue from the earlier message."
-        : "Latest reply removed. Use Generate reply to continue.");
+      setStory(isPlayer ? removePlayerTurn(state,turn.id) : removeProviderTurn(state,turn.id));
+      toast("Story rewound by "+removedCount+" turn"+(removedCount===1?"":"s")+". Earlier history remains.");
     }catch(error){toast(error.message);}
   } else if (action==="regenerate") {
     if (!window.confirm("Regenerate this reply? The existing version will stay until a replacement succeeds.")) return;
