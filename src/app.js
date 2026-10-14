@@ -6,9 +6,12 @@ import {
 } from "./coda-sound.js";
 import { parseCodaCandidate, loadDiscovery, saveDiscovery, shouldDiscover } from "./coda-discovery.js";
 import { mountAssetLibrary } from "./library-ui.js";
+import { getStoryAssets, getLocalAsset, setStoryAssets } from "./asset-store.js";
+import { compileEmberContext } from "./context-compiler.js";
 
 const root = document.querySelector("#app");
 const liveSession = globalThis.__EMBER_SESSION__ ?? null;
+const isGuest = liveSession?.identity === "guest";
 if (liveSession) configureStoryScope(liveSession);
 document.documentElement.dataset.emberMode = liveSession?.mode ?? "preview";
 let { state, error: loadError } = loadStory();
@@ -43,9 +46,11 @@ root.innerHTML = `
         <span class="saved" id="saveStatus">● Local preview</span>
         <button class="quiet desktop-only" id="themeButton" type="button" title="Switch Lamplight / Daylight">◐ <span>Theme</span></button>
         <button class="quiet desktop-only" id="libraryButton" type="button">My Library</button>
+        ${isGuest ? '<a class="quiet desktop-only" id="accountButton" href="/ember/account">Account &amp; NovelAI</a>' : ""}
         <button class="quiet desktop-only" id="prefsButton" type="button">Scene &amp; style</button>
         <details class="overflow"><summary class="quiet" aria-label="More story options">•••</summary><div class="popover">
           <button type="button" id="libraryMenuButton">My Library</button>
+          ${isGuest ? '<button type="button" id="accountMenuButton">Account &amp; NovelAI</button>' : ""}
           <button type="button" id="exportButton">Save to file</button>
           <button type="button" id="importButton">Open saved file</button>
           <button type="button" id="newButton">New story</button>
@@ -116,6 +121,7 @@ root.innerHTML = `
           <p class="phone-menu-status"><span id="phoneSaveStatus">● Saved locally</span><span id="phoneClock"></span></p>
           <div class="phone-menu-actions">
             <button type="button" data-menu-action="library">My Library</button>
+            ${isGuest ? '<button type="button" data-menu-action="account">Account &amp; NovelAI</button>' : ""}
             <button type="button" data-menu-action="style">Scene & style</button>
             <button type="button" data-menu-action="theme">◐ Theme</button>
             <button type="button" data-menu-action="export">Save to file</button>
@@ -281,6 +287,7 @@ function renderNarrationState() {
     ? "Offline preview: saves your words but cannot generate narration."
     : narrationBusy ? "NovelAI is writing the next moment…"
     : canRetry ? "Last message is saved. Retry its response, or write another message."
+    : isGuest ? "NovelAI uses the key configured in Ember Account settings."
     : "NovelAI uses the key already saved in your Orbis account.";
   $("#narrationStatus").textContent = narrationBusy ? "✧ Awaiting NovelAI's reply…" : "";
   // Pre-existing local player turns from the earlier offline-only shell
@@ -317,10 +324,18 @@ async function generateLastTurn() {
       turns.unshift(entry);
       remaining -= entry.text.length;
     }
-    const response = await fetch("/ember/api/generate",{
-      method: "POST", credentials: "same-origin", cache: "no-store",
-      headers: { "Content-Type":"application/json", "X-Ember-Request":"generation" },
-      body: JSON.stringify({ turns, characters: codaDiscovery.profiles.map(({name,role,established}) => ({name,role,established})).slice(0,12) }),
+    let requestBody = { turns, characters: codaDiscovery.profiles.map(({name,role,established}) => ({name,role,established})).slice(0,12) };
+    if (isGuest) {
+      const bindings = await getStoryAssets(liveSession.userId, state.id);
+      const assets = (await Promise.all(bindings.filter(b => b.enabled !== false)
+        .map(b => getLocalAsset(liveSession.userId, b.id)))).filter(Boolean);
+      const compiled = compileEmberContext({story:state,assets,bindings});
+      requestBody = {prompt:compiled.prompt};
+    }
+    const response = await fetch(isGuest ? "/ember/api/guest/generate" : "/ember/api/generate",{
+      method:"POST",credentials:"same-origin",cache:"no-store",
+      headers:{"Content-Type":"application/json","X-Ember-Request":"generation"},
+      body:JSON.stringify(requestBody),
     });
     let result = {};
     try { result = await response.json(); } catch { /* gateway error */ }
@@ -353,7 +368,9 @@ function render() {
   $("#phoneClock").textContent = liveSession?.mode === "character" ? "" : $("#clock").textContent;
   $("#previewNotice").innerHTML = disabled
     ? `<strong>Save recovery needed.</strong> ${safe(loadError)} Use "Open saved file" to restore a backup, or "New story" after preserving the damaged browser data if needed.`
-    : liveSession?.mode === "sandbox"
+    : isGuest
+      ? '<strong>Ember guest account.</strong> Your V2 cards and lorebooks stay private in this browser. <a href="/ember/account">Configure NovelAI in Account settings</a> to generate without Orbis.'
+      : liveSession?.mode === "sandbox"
       ? '<strong>Free Sandbox.</strong> No package or preset world is required. Type a message and NovelAI will continue using your Orbis account settings.'
       : liveSession?.mode === "character"
         ? `<strong>Character roleplay:</strong> ${safe(liveSession.asset.name)}. Your conversation is saved locally, with narration from your Orbis NovelAI account.`
@@ -440,7 +457,7 @@ function renderCodaDiscovery() {
 }
 
 async function discoverAfterNarration(snapshot) {
-  if (liveSession?.mode !== "sandbox" || codaDiscoveryBusy || !shouldDiscover(snapshot.turns, codaDiscovery)) return;
+  if (isGuest || liveSession?.mode !== "sandbox" || codaDiscoveryBusy || !shouldDiscover(snapshot.turns, codaDiscovery)) return;
   const storyId = snapshot.id;
   const players = snapshot.turns.filter(turn => turn.source === "player").length;
   codaDiscovery.lastChecked = players;
@@ -712,7 +729,7 @@ $("#newButton").addEventListener("click", () => {
   } catch (err) { toast(`Unable to create story: ${err.message}`); }
 });
 // Phone menu entries reuse the header controls, which phones hide.
-const menuTargets = { library: "#libraryMenuButton", style: "#prefsMenuButton", theme: "#themeButton", export: "#exportButton", import: "#importButton", new: "#newButton" };
+const menuTargets = { library: "#libraryMenuButton", account: "#accountMenuButton", style: "#prefsMenuButton", theme: "#themeButton", export: "#exportButton", import: "#importButton", new: "#newButton" };
 root.querySelector(".phone-menu").addEventListener("click", event => {
   const target = menuTargets[event.target.closest("[data-menu-action]")?.dataset.menuAction];
   if (!target) return;
@@ -736,14 +753,16 @@ const assetLibrary = mountAssetLibrary({
     fresh.title = "Story with " + asset.fields.name;
     fresh.assetSetup = { characterId: asset.id, openingIndex, scenario: asset.fields.scenario };
     if (greeting) fresh.turns = [{ id: crypto.randomUUID(), source: "preview", mode: "narrator", text: greeting }];
+    if (isGuest) await setStoryAssets(liveSession.userId,fresh.id,[{id:asset.id,enabled:true,greeting:openingIndex}]);
     narrationError = "";
     setStory(fresh);
-    toast("New story opened with the selected greeting. AI character context integration is pending.");
+    toast(isGuest ? "Character opened with native V2 context ready for generation." : "New story opened with the selected greeting. AI character context integration is pending.");
     return true;
   },
 });
 $("#libraryButton").addEventListener("click", () => void assetLibrary.open());
 $("#libraryMenuButton").addEventListener("click", () => { $(".overflow").open = false; void assetLibrary.open(); });
+if (isGuest) $("#accountMenuButton").addEventListener("click",()=>{window.location.href="/ember/account";});
 updateTheme();
 updateSoundSettings();
 render();
@@ -752,7 +771,7 @@ if (loadError) toast(loadError);
 if (liveSession) {
   const verifyActiveSession = async () => {
     try {
-      const response = await fetch('/ember/api/session', { credentials: 'same-origin', cache: 'no-store' });
+      const response = await fetch(isGuest ? '/ember/api/guest/session' : '/ember/api/session', { credentials: 'same-origin', cache: 'no-store' });
       if (!response.ok) throw new Error('Session expired');
       const current = await response.json();
       if (current.userId !== liveSession.userId || current.mode !== liveSession.mode
