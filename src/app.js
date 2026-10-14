@@ -835,14 +835,18 @@ async function copySanitizedStory() {
     let characterName=storySpeakerName(current);
     const characterId=current.assetSetup?.characterId;
     if(characterId){
-      const character=await getLocalAsset(liveSession?.userId??"local",characterId);
-      if(character?.kind==="character" && character.fields?.name)characterName=character.fields.name;
+      try {
+        const character=await getLocalAsset(liveSession?.userId??"local",characterId);
+        if(character?.kind==="character" && character.fields?.name)characterName=character.fields.name;
+      } catch { /* Allow transcript copy even if the local V2 library is unavailable. */ }
     }
     let personaName=playerPersonaName(current);
     const personaId=current.assetSetup?.personaId;
     if(personaId){
-      const persona=await getLocalAsset(liveSession?.userId??"local",personaId);
-      if(persona?.kind==="character" && persona.fields?.name)personaName=persona.fields.name;
+      try {
+        const persona=await getLocalAsset(liveSession?.userId??"local",personaId);
+        if(persona?.kind==="character" && persona.fields?.name)personaName=persona.fields.name;
+      } catch { /* Keep a neutral player label if IndexedDB is unavailable. */ }
     }
     const transcript=exportSanitizedStory(current,{characterName,personaName});
     if(navigator.clipboard?.writeText){
