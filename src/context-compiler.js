@@ -113,6 +113,21 @@ function recentEntries(turns,budget) {
   }
   return result;
 }
+// Select a few complete, unchanged V2 example-dialogue lines. They are
+// fictional reference, never assistant instructions or the player's voice.
+function voiceExamples(character) {
+  const raw=string(character?.fields?.exampleMessages).replace(/\r\n?/g,"\n");
+  if(!raw.trim())return "";
+  const selected=[];
+  let length=0;
+  for(const line of raw.split("\n")){
+    const example=line.trim();
+    if(!example || example.length>180)continue;
+    if(length+example.length+1>360 || selected.length===3)break;
+    selected.push(example);length+=example.length+1;
+  }
+  return selected.length ? reference("PRIMARY NPC VOICE EXAMPLES",selected.join("\n")) : "";
+}
 function fitReference(name,fields,allowance) {
   // Adapt verbose V2 fields proportionally; always retain the identity,
   // personality and scenario ahead of optional examples and creator notes.
@@ -191,7 +206,11 @@ export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_
     "Finish a complete sentence before the output token allowance ends.",
     "[END REPLY STYLE]",
   ].join("\n");
-  const end="\n[END TRANSCRIPT]\n"+replyStyle+"\nNARRATOR:";
+  const voiceBlock=voiceExamples(character);
+  // Voice examples are included only when budget allows, before final style
+  // guidance. This copies original NPC dialogue without altering the V2 card.
+  const voiceTail=voiceBlock ? "\n"+voiceBlock : "";
+  const end="\n[END TRANSCRIPT]"+voiceTail+"\n"+replyStyle+"\nNARRATOR:";
   // Reserve 40% of the entire prompt for dialogue before fitting verbose cards.
   // Keep this proportional for deliberately small test/story budgets.
   const reservedHistory=Math.max(850,Math.min(8500,Math.floor(maxChars*.40)));
@@ -273,6 +292,6 @@ export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_
     historyTurnsOmitted:omitted,
     oldestIncludedTurnIndex:allTurns.length-turns.length+firstIndex,
     openingExcerptIncluded:Boolean(earlyBlock),
-    storyMemoryIncluded:Boolean(memory),reservedHistoryChars:reservedHistory,
+    storyMemoryIncluded:Boolean(memory),voiceExamplesIncluded:Boolean(voiceBlock),reservedHistoryChars:reservedHistory,
   };
 }
