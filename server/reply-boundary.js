@@ -1,11 +1,23 @@
 /**
- * Retain only complete prose when NovelAI ignores the requested word budget
- * or hits its generation token limit. One provider request, no auto-continue.
- * Never fabricate an ending or insert text into the player's saved story.
+ * Save a complete, syntactically balanced reply within the word ceiling.
+ * Never fabricate closing punctuation, speech, actions, or a second paid call.
  */
 const countWords=value=>value.trim().match(/\S+/gu)?.length||0;
 const COMPLETE=/[.!?]+(?:["”'’)\]]*)(?=\s|$)/gu;
-const closesQuote=value=>/(?:["”])$/u.test(value);
+const closesQuote=value=>/["”]$/u.test(value);
+
+function balancedMarkers(value) {
+  let quoted=false,curly=false,action=false;
+  for(let i=0;i<value.length;i++){
+    const ch=value[i];
+    if(ch==="\\" && i+1<value.length){i++;continue;}
+    if(ch==='"')quoted=!quoted;
+    else if(ch==="“")curly=true;
+    else if(ch==="”")curly=false;
+    else if(ch==="*")action=!action;
+  }
+  return !quoted && !curly && !action;
+}
 
 export function boundCompletedReply(input,maxWords) {
   if(typeof input!=="string" || !Number.isInteger(maxWords) || maxWords<30 || maxWords>400)
@@ -14,16 +26,16 @@ export function boundCompletedReply(input,maxWords) {
   if(!text)return {text:"",shortened:false};
   const withinBudget=countWords(text)<=maxWords;
   const endsCleanly=/(?:[.!?]+(?:["”'’)\]]*)|["”])$/u.test(text);
-  if(withinBudget && endsCleanly)return {text,shortened:false};
+  if(withinBudget && endsCleanly && balancedMarkers(text))
+    return {text,shortened:false};
   let best="";
   for(const match of text.matchAll(COMPLETE)){
     const end=match.index+match[0].length;
     const prefix=text.slice(0,end).trimEnd();
     if(countWords(prefix)>maxWords)break;
-    // Prefer not to end midway through quotes/actions. A candidate ending in
-    // dialogue punctuation is fine; keep it when no enclosing quote remains.
-    best=prefix;
+    if(balancedMarkers(prefix))best=prefix;
   }
-  if(!best && withinBudget && closesQuote(text))return {text,shortened:false};
+  if(!best && withinBudget && closesQuote(text) && balancedMarkers(text))
+    return {text,shortened:false};
   return {text:best,shortened:best!==text};
 }
