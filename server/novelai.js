@@ -1,5 +1,6 @@
 // Ember's own NovelAI provider adapter. Never import this module into browser code.
 // Credentials are supplied by a future authenticated Ember-side encrypted vault.
+import { boundCompletedReply } from "./reply-boundary.js";
 export const NOVELAI_MODELS = Object.freeze(["xialong-v1","glm-4-6"]);
 export class EmberProviderError extends Error {
   constructor(status,code,message) {
@@ -19,7 +20,7 @@ function resultText(value) {
 }
 export async function generateNovelAI({
   token,model,prompt,fetchFn=globalThis.fetch,timeoutMs=90000,
-  maxTokens=384,temperature=0.82,
+  maxTokens=384,maxWords=135,temperature=0.82,
 }={}) {
   if (typeof token!=="string" || token.length < 10 || token.length > 4096)
     throw new EmberProviderError(409,"NOVELAI_NOT_CONFIGURED","Configure a NovelAI key in Ember provider settings.");
@@ -27,7 +28,7 @@ export async function generateNovelAI({
     throw new EmberProviderError(409,"NOVELAI_MODEL_UNSUPPORTED","Choose a supported NovelAI model.");
   if (typeof prompt!=="string" || !prompt.trim() || prompt.length>50000)
     throw new EmberProviderError(400,"EMBER_INVALID_CONTEXT","Ember's story context is missing or too long.");
-  if (!Number.isInteger(maxTokens) || maxTokens<64 || maxTokens>2048 || !Number.isFinite(temperature) || temperature<0 || temperature>2)
+  if (!Number.isInteger(maxTokens) || maxTokens<64 || maxTokens>2048 || !Number.isInteger(maxWords) || maxWords<30 || maxWords>400 || !Number.isFinite(temperature) || temperature<0 || temperature>2)
     throw new EmberProviderError(400,"EMBER_INVALID_SETTINGS","Invalid provider generation settings.");
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),Math.min(120000,Math.max(1000,timeoutMs)));
@@ -59,7 +60,11 @@ export async function generateNovelAI({
     const text=resultText(payload).replace(/^(?:NARRATOR|ASSISTANT)\s*:\s*/i,"").trim();
     if (!text) throw new EmberProviderError(502,"NOVELAI_EMPTY_REPLY","NovelAI returned an empty reply.");
     if (text.length>32000) throw new EmberProviderError(502,"NOVELAI_OVERSIZED_REPLY","NovelAI returned an oversized reply.");
-    return {text,model};
+    const bounded=boundCompletedReply(text,maxWords);
+    if(!bounded.text)
+      throw new EmberProviderError(502,"NOVELAI_INCOMPLETE_REPLY",
+        "NovelAI stopped before completing a sentence. No partial reply was saved. Try regenerating.");
+    return {text:bounded.text,model,...(bounded.shortened?{shortened:true}:{})};
   } finally {
     clearTimeout(timer);
   }
