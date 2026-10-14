@@ -170,6 +170,27 @@ export function addNarratorTurn(state, playerTurnId, rawText) {
   };
 }
 
+/**
+ * Story reply controls retain stable IDs and never alter adjacent turns.
+ * The caller must persist returned copies after checking the story revision.
+ */
+export function replaceProviderTurn(state,turnId,rawText) {
+  const index=state?.turns?.findIndex(turn=>turn.id===turnId && turn.source==="provider");
+  if(index<0)throw new Error("Generated reply was not found.");
+  const text=cleanNarration(rawText);
+  if(typeof text!=="string" || !text || text.length>32000)
+    throw new Error("A generated reply must contain between 1 and 32,000 characters.");
+  return {...state,revision:state.revision+1,turns:state.turns.map((turn,i)=>
+    i===index?{...turn,text}:turn)};
+}
+export function removeLatestProviderTurn(state,turnId) {
+  const latest=state?.turns?.at(-1);
+  if(!latest || latest.source!=="provider" || latest.id!==turnId
+    || state.turns.at(-2)?.source!=="player")
+    throw new Error("Only the latest reply following your message can be removed.");
+  return {...state,revision:state.revision+1,turns:state.turns.slice(0,-1)};
+}
+
 export function advanceTime(state, elapsedMinutes) {
   if (!Number.isInteger(elapsedMinutes) || elapsedMinutes < 1 || elapsedMinutes > 1440) {
     throw new Error("Wait must be between 1 minute and 1 day");
