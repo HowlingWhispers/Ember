@@ -936,6 +936,9 @@ updateSoundSettings();
 render();
 void loadActiveCardName();
 void loadActivePersonaName();
+if (new URLSearchParams(window.location.search).get("library")==="persona") {
+  void assetLibrary.open("persona");
+}
 if (loadError) toast(loadError);
 // An Ember tab must stop showing private material when its Orbis session ends.
 if (liveSession) {
