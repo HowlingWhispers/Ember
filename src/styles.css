@@ -115,6 +115,9 @@ h1, h2, h3 { font-family: Georgia, "Times New Roman", serif; }
 
 /* Generated reply controls are visually subordinate to the prose, but
    large enough to operate on both mouse and touch screens. */
+.agency-warning { margin: 10px 0 3px; padding: 9px 11px; border-left: 2px solid var(--gold);
+  border-radius: 5px; color: var(--text); background: var(--paper-warm);
+  font: 12px/1.5 "Segoe UI", system-ui, sans-serif; }
 .reply-tools { display: flex; align-items: center; justify-content: flex-end; gap: 5px;
   padding: 7px 0 0; margin-top: 9px; border-top: 1px solid var(--border); }
 .reply-tool { min-width: 38px; min-height: 38px; display: inline-flex; align-items: center;
