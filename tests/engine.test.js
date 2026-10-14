@@ -87,3 +87,18 @@ test("narration attaches only to the player turn that requested it", () => {
   assert.throws(()=>addNarratorTurn(awaiting,'other','Wrong turn'),/no longer matches/);
   assert.throws(()=>addNarratorTurn(awaiting,id,'   '),/Invalid narration/);
 });
+
+test("text size, layout density and theme are stored under separate keys", async () => {
+  const map = new Map();
+  globalThis.localStorage = { getItem: k => map.get(k) ?? null, setItem: (k, v) => map.set(k, v), removeItem: k => map.delete(k) };
+  const { getPreference, setPreference } = await import("../src/storage.js");
+  setPreference("font", "22");
+  setPreference("density", "comfortable");
+  setPreference("theme", "daylight");
+  assert.equal(getPreference("font", "20"), "22");
+  assert.equal(getPreference("density", "compact"), "comfortable");
+  assert.equal(getPreference("theme", "lamplight"), "daylight");
+  setPreference("unknown", "x");
+  assert.equal(getPreference("unknown", "fallback"), "fallback");
+  assert.equal(map.size, 3);
+});

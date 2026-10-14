@@ -13,7 +13,13 @@ let { state, error: loadError } = loadStory();
 let activeTab = "here";
 let mode = "action";
 let theme = getPreference("theme", "lamplight") === "daylight" ? "daylight" : "lamplight";
-let fontSize = Math.min(26, Math.max(16, Number(getPreference("font", "20")) || 20));
+// Phones: keep this query identical to the "Phone layout" block in styles.css.
+const PHONE_QUERY = "(max-width: 600px), (pointer: coarse) and (max-height: 500px)";
+const isPhone = typeof matchMedia === "function" && matchMedia(PHONE_QUERY).matches;
+// A saved size always wins; only the unsaved default is smaller on phones.
+const defaultFontSize = isPhone ? 18 : 20;
+let fontSize = Math.min(26, Math.max(16, Number(getPreference("font", String(defaultFontSize))) || defaultFontSize));
+const NEAR_LIMIT = Math.floor(MAX_INPUT * 0.9);
 let density = getPreference("density", "compact") === "comfortable" ? "comfortable" : "compact";
 let railOpen = false;
 const soundUserId = liveSession?.userId;
@@ -62,9 +68,11 @@ root.innerHTML = `
           <div class="desk-top">
             <div class="desk-heading"><span aria-hidden="true">✒</span> Write your next moment</div>
             <div class="desk-tools">
+              <button type="button" id="menuButton" class="chip-button phone-only" aria-label="Story menu" aria-expanded="false" aria-controls="worldRail">☰</button>
               <button type="button" id="goButton" class="chip-button">↗ Go</button>
               <button type="button" id="waitButton" class="chip-button">◷ Wait</button>
-              <button type="button" id="passButton" class="chip-button" disabled title="Available when a narrator is connected">Pass the turn</button>
+              <button type="button" id="passButton" class="chip-button" disabled title="Available when a narrator is connected"><span class="long-label">Pass the turn</span><span class="short-label">Pass</span></button>
+              <button type="button" id="modeCycle" class="chip-button mode-cycle phone-only" data-current-mode="action" aria-label="Writing mode: Action. Tap to change.">Action</button>
             </div>
           </div>
           <div class="composer">
@@ -78,7 +86,7 @@ root.innerHTML = `
             <div class="composer-footer">
               <span class="composer-hint" id="composeHint">Your words are recorded locally.</span>
               <span class="input-count" id="inputCount">0 / ${MAX_INPUT}</span>
-              <button type="button" class="primary" id="sendButton">Send <span aria-hidden="true">➜</span></button>
+              <button type="button" class="primary" id="sendButton"><span class="send-label">Send ➜</span><span class="send-glyph" aria-hidden="true">➜</span></button>
             </div>
           </div>
           <div class="narration-feedback">
@@ -101,6 +109,16 @@ root.innerHTML = `
           <button type="button" data-tab="almanac">Almanac</button>
         </nav>
         <div id="railContent" class="rail-content"></div>
+        <nav class="phone-menu phone-only" aria-label="Story menu">
+          <p class="phone-menu-status"><span id="phoneSaveStatus">● Saved locally</span><span id="phoneClock"></span></p>
+          <div class="phone-menu-actions">
+            <button type="button" data-menu-action="style">Scene & style</button>
+            <button type="button" data-menu-action="theme">◐ Theme</button>
+            <button type="button" data-menu-action="export">Save to file</button>
+            <button type="button" data-menu-action="import">Open saved file</button>
+            <button type="button" data-menu-action="new">New story</button>
+          </div>
+        </nav>
         <footer class="rail-footer"><span class="tiny-led"></span> PREVIEW DATA · NO ORBIS CONNECTION</footer>
       </aside>
     </div>
@@ -168,12 +186,15 @@ const toast = message => {
 };
 const hideToast = () => $("#toast").classList.remove("visible");
 const openDialog = selector => $(selector).showModal();
-const closeRail = () => {
-  railOpen = false;
-  $("#worldRail").classList.remove("open");
-  $("#railScrim").classList.remove("show");
-  $("#railButton").setAttribute("aria-expanded", "false");
+// The header's World button and the phone menu button open the same drawer.
+const setRail = open => {
+  railOpen = open;
+  $("#worldRail").classList.toggle("open", open);
+  $("#railScrim").classList.toggle("show", open);
+  $("#railButton").setAttribute("aria-expanded", String(open));
+  $("#menuButton").setAttribute("aria-expanded", String(open));
 };
+const closeRail = () => setRail(false);
 function saveSoundSettings() {
   try {
     soundSettings = storeSoundPreferences(soundUserId, soundSettings);
@@ -229,7 +250,12 @@ function renderNarrationState() {
   const last = state?.turns.at(-1);
   const canRetry = live && !narrationBusy && last?.source === "player";
   $("#sendButton").disabled = !state || narrationBusy || (canRetry && !$("#playerInput").value.trim());
-  $("#sendButton").innerHTML = narrationBusy ? "Generating…" : live ? "Send to NovelAI ➜" : "Add to story ➜";
+  // The label is unchanged on desktop; phones show only the glyph, so the
+  // label also becomes the button's accessible name.
+  const sendLabel = narrationBusy ? "Generating…" : live ? "Send to NovelAI ➜" : "Add to story ➜";
+  $("#sendButton .send-label").textContent = sendLabel;
+  $("#sendButton .send-glyph").textContent = narrationBusy ? "…" : "➜";
+  $("#sendButton").setAttribute("aria-label", sendLabel.replace(" ➜", ""));
   $("#passButton").disabled = true;
   $("#playerInput").disabled = !state || narrationBusy;
   $("#composeHint").textContent = !live
@@ -245,6 +271,8 @@ function renderNarrationState() {
   $("#narrationErrorText").textContent = narrationError || "Your last message is saved and waiting for a reply.";
   $("#retryNarration").textContent = narrationError ? "Retry reply" : "Generate reply";
   $("#retryNarration").disabled = !canRetry;
+  // Phones float this feedback over the story; reserve scroll room only while it shows.
+  $(".story-column").classList.toggle("has-feedback", narrationBusy || !$("#narrationError").hidden);
 }
 async function generateLastTurn() {
   if (!liveSession || narrationBusy || !state) return;
@@ -300,6 +328,8 @@ function render() {
   $("#clock").textContent = state ? formatClock(state.world) : "Time unavailable";
   $("#storyTitle").textContent = state?.title ?? "Recovery required";
   $("#saveStatus").textContent = disabled ? "● Recovery needed" : "● Saved locally";
+  $("#phoneSaveStatus").textContent = $("#saveStatus").textContent;
+  $("#phoneClock").textContent = liveSession?.mode === "character" ? "" : $("#clock").textContent;
   $("#previewNotice").innerHTML = disabled
     ? `<strong>Save recovery needed.</strong> ${safe(loadError)} Use "Open saved file" to restore a backup, or "New story" after preserving the damaged browser data if needed.`
     : liveSession?.mode === "sandbox"
@@ -378,7 +408,7 @@ $("#sendButton").addEventListener("click", () => {
     narrationError = "";
     $("#playerInput").value = "";
     resizeComposer();
-    $("#inputCount").textContent = `0 / ${MAX_INPUT}`;
+    updateInputCount();
     setStory(next);
     $("#storyScroll").scrollTop = $("#storyScroll").scrollHeight;
     if (liveSession) void generateLastTurn();
@@ -391,23 +421,42 @@ $("#playerInput").addEventListener("keydown", event => {
 });
 function resizeComposer() {
   const field = $("#playerInput");
-  field.style.height = "auto";
-  field.style.height = `${Math.min(field.scrollHeight, 170)}px`;
-  field.style.overflowY = field.scrollHeight > 170 ? "auto" : "hidden";
+  // Follow the stylesheet's cap, which is lower on phones.
+  const max = parseFloat(getComputedStyle(field).maxHeight) || 170;
+  // "auto" sizes to rows="2"; phones start at one line and grow with the text.
+  field.style.height = typeof matchMedia === "function" && matchMedia(PHONE_QUERY).matches ? "0px" : "auto";
+  field.style.height = `${Math.min(field.scrollHeight, max)}px`;
+  field.style.overflowY = field.scrollHeight > max ? "auto" : "hidden";
 }
 resizeComposer();
+// Phones show the count only near the limit; desktop always shows it.
+function updateInputCount() {
+  const length = $("#playerInput").value.length;
+  $("#inputCount").textContent = `${length} / ${MAX_INPUT}`;
+  $("#inputCount").classList.toggle("near-limit", length >= NEAR_LIMIT);
+}
 $("#playerInput").addEventListener("input", () => {
   resizeComposer();
-  $("#inputCount").textContent = `${$("#playerInput").value.length} / ${MAX_INPUT}`;
+  updateInputCount();
   renderNarrationState();
 });
+// Desktop tabs and the phone chip drive the same writing mode.
+function setMode(next) {
+  if (!modes.includes(next)) return;
+  mode = next;
+  $("#modeSwitch").querySelectorAll("button").forEach(btn => btn.classList.toggle("selected", btn.dataset.mode === mode));
+  $("#modeCycle").textContent = titleCase(mode);
+  $("#modeCycle").dataset.currentMode = mode;
+  $("#modeCycle").setAttribute("aria-label", `Writing mode: ${titleCase(mode)}. Tap to change.`);
+}
 $("#modeSwitch").addEventListener("click", event => {
   const button = event.target.closest("[data-mode]");
-  if (!button || !modes.includes(button.dataset.mode)) return;
-  mode = button.dataset.mode;
-  $("#modeSwitch").querySelectorAll("button").forEach(btn => btn.classList.toggle("selected", btn.dataset.mode === mode));
+  if (!button) return;
+  setMode(button.dataset.mode);
   $("#playerInput").focus();
 });
+// Focus stays where it was, so the soft keyboard doesn't jump open or closed.
+$("#modeCycle").addEventListener("click", () => setMode(modes[(modes.indexOf(mode) + 1) % modes.length]));
 $("#railContent").addEventListener("submit", event => {
   if (event.target.id !== "noteForm") return;
   event.preventDefault();
@@ -560,12 +609,17 @@ $("#newButton").addEventListener("click", () => {
     toast("New local story created.");
   } catch (err) { toast(`Unable to create story: ${err.message}`); }
 });
-$("#railButton").addEventListener("click", () => {
-  railOpen = !railOpen;
-  $("#worldRail").classList.toggle("open", railOpen);
-  $("#railScrim").classList.toggle("show", railOpen);
-  $("#railButton").setAttribute("aria-expanded", String(railOpen));
+// Phone menu entries reuse the header controls, which phones hide.
+const menuTargets = { style: "#prefsMenuButton", theme: "#themeButton", export: "#exportButton", import: "#importButton", new: "#newButton" };
+root.querySelector(".phone-menu").addEventListener("click", event => {
+  const target = menuTargets[event.target.closest("[data-menu-action]")?.dataset.menuAction];
+  if (!target) return;
+  if (target !== "#themeButton") closeRail();
+  $(target).click();
 });
+if (liveSession?.mode === "character") $(".rail-kicker").textContent = "STORY MENU";
+$("#railButton").addEventListener("click", () => setRail(!railOpen));
+$("#menuButton").addEventListener("click", () => setRail(!railOpen));
 $("#railScrim").addEventListener("click", closeRail);
 $("#closeRail").addEventListener("click", closeRail);
 document.addEventListener("keydown", event => { if (event.key === "Escape") { closeRail(); hideToast(); } });

@@ -27,3 +27,14 @@ test("leaves apostrophes and unwrapped intentional quotations alone", () => {
   assert.equal(cleanNarration("It's Lyra's spear."), "It's Lyra's spear.");
   assert.equal(cleanNarration("She says, 'Hello,' before leaving."), "She says, 'Hello,' before leaving.");
 });
+
+test("removes line-start NPC role labels copied from the transcript format", () => {
+  const raw = 'The ground is soft with fallen needles.\nNPC (RELIC): "Ah, good. You\'re not another wandering spirit."';
+  assert.equal(cleanNarration(raw), 'The ground is soft with fallen needles.\n"Ah, good. You\'re not another wandering spirit."');
+  assert.equal(cleanNarration('NPC: "Stay back."'), '"Stay back."');
+});
+
+test("keeps NPC wording that is part of the fiction", () => {
+  const prose = 'Lyra says, "NPC (RELIC): is that what they call you?"\nThe NPC registry lists six names.';
+  assert.equal(cleanNarration(prose), prose);
+});

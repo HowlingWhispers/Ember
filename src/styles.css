@@ -292,7 +292,77 @@ dialog::backdrop { background: rgba(0,0,0,.67); }
  .writing-desk { padding: 9px 12px; }
 }
 @media (max-width: 530px) {
- .story-inner, :root[data-density="comfortable"] .story-inner { padding: 18px 15px 25px; }
- .writing-desk { padding: 8px; }
- .composer textarea { min-height: 48px; }
+  .story-inner, :root[data-density="comfortable"] .story-inner { padding: 18px 15px 25px; }
+  .writing-desk { padding: 8px; }
+  .composer textarea { min-height: 48px; }
+}
+
+/* Phone-only controls stay out of the desktop and tablet layouts. */
+.phone-only, .short-label, .send-glyph { display: none; }
+
+/* Phone layout: no header, one quick-action row, one composer row.
+   Keep this query identical to PHONE_QUERY in app.js. */
+@media (max-width: 600px), (pointer: coarse) and (max-height: 500px) {
+  .topbar { display: none; }
+  .toast { top: 10px; right: 10px; left: 10px; max-width: none; }
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .world-rail { position: fixed; top: 0; bottom: 0; right: 0; width: min(390px, 93vw); z-index: 10; box-shadow: -10px 0 32px var(--shadow); transform: translateX(104%); transition: transform .2s; }
+  .world-rail.open { transform: translateX(0); }
+  .rail-scrim.show { position: fixed; z-index: 9; inset: 0; display: block; background: rgba(0,0,0,.55); }
+  .mobile-world { display: inline-block; }
+  /* Right padding keeps prose clear of Coda's edge tab. */
+  .story-inner, :root[data-density="comfortable"] .story-inner { padding: 14px 24px 16px 15px; }
+  .story-column.has-feedback .story-inner { padding-bottom: 84px; }
+  .turn.narrator .turn-label { display: none; }
+  .turn.player { margin-left: 7px; padding: 10px 14px; }
+
+  .writing-desk, :root[data-density="comfortable"] .writing-desk { position: relative; padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); }
+  .desk-top, :root[data-density="comfortable"] .desk-top { margin-bottom: 6px; flex-wrap: nowrap; }
+  .desk-heading { display: none; }
+  .desk-tools { width: 100%; gap: 6px; justify-content: flex-start; }
+  .desk-tools .chip-button { min-height: 40px; padding: 0 12px; font-size: 12px; white-space: nowrap; }
+  .phone-only { display: inline-flex; align-items: center; justify-content: center; }
+  #menuButton { flex: 0 0 40px; width: 40px; padding: 0; font-size: 18px; }
+  .mode-cycle { margin-left: auto; min-width: 82px; }
+  .mode-cycle::before { content: ""; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--action); }
+  .mode-cycle[data-current-mode="speech"]::before { background: var(--text); }
+  .mode-cycle[data-current-mode="thought"]::before { background: var(--thought); }
+  .long-label { display: none; }
+  .short-label { display: inline; }
+
+  .mode-switch { display: none; }
+  .composer, :root[data-density="comfortable"] .composer { display: grid; grid-template-columns: minmax(0, 1fr) 40px; align-items: end; column-gap: 4px; padding: 3px; border-radius: 10px; }
+  .composer-footer { display: contents; }
+  .composer-hint { display: none; }
+  .composer textarea, :root[data-density="comfortable"] .composer textarea { grid-column: 1; grid-row: 1; min-height: 40px; max-height: 132px; padding: 9px 8px; font-size: 16px; }
+  #sendButton { grid-column: 2; grid-row: 1; width: 40px; height: 40px; padding: 0; display: grid; place-items: center; font-size: 17px; }
+  .send-label { display: none; }
+  .send-glyph { display: inline; }
+  .input-count { display: none; grid-column: 1 / -1; grid-row: 2; justify-self: end; margin: 0; padding: 0 6px 3px; }
+  .input-count.near-limit { display: block; color: var(--gold); }
+
+  /* Status floats above the desk, so starting or ending generation never moves the composer. */
+  .narration-feedback { position: absolute; left: 8px; right: 8px; bottom: 100%; height: auto; margin-bottom: 8px; z-index: 2; pointer-events: none; }
+  .narration-feedback > * { pointer-events: auto; }
+  .narration-status { width: auto; padding: 7px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); box-shadow: 0 6px 18px var(--shadow); }
+  .narration-error { max-height: none; flex-wrap: wrap; background: var(--surface); box-shadow: 0 6px 18px var(--shadow); }
+
+  /* Coda shows a 13px sliver inside the story's right padding; a clear strip widens the tap target. */
+  .coda-dock { top: 38%; transform: translateX(72%); }
+  .coda-orb { position: relative; }
+  .coda-orb::before { content: ""; position: absolute; top: -10px; bottom: -10px; left: -14px; width: 14px; }
+
+  .phone-menu { display: block; padding: 10px 16px 14px; border-top: 1px solid var(--border); }
+  .phone-menu-status { display: flex; justify-content: space-between; gap: 10px; margin: 0 0 8px; font-size: 11px; color: var(--muted); }
+  .phone-menu-status span:first-child { color: var(--accent); }
+  .phone-menu-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .phone-menu-actions button { min-height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--paper-warm); font-size: 12px; text-align: left; }
+
+  /* Character roleplay has no world rail, but phones still need the drawer for the story menu. */
+  :root[data-ember-mode="character"] .world-rail { display: flex !important; }
+  :root[data-ember-mode="character"] .rail-scrim.show { display: block !important; }
+  :root[data-ember-mode="character"] #closeRail { display: inline-block !important; }
+  :root[data-ember-mode="character"] .rail-tabs,
+  :root[data-ember-mode="character"] .rail-content,
+  :root[data-ember-mode="character"] .rail-footer { display: none; }
 }

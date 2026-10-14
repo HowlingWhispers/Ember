@@ -99,6 +99,9 @@ export function cleanNarration(rawText) {
       (_, prefix, spoken) => prefix + '"' + spoken + '"');
   }
   text = text.replace(/^[ \t]*(?:\*\*)?(?:NARRATOR\s*(?:\(\s*CONT(?:INUED)?\s*\))?|\[\s*NARRATOR\s*\]|PREVIEW OPENING)(?:\*\*)?\s*:\s*/gim, "");
+  // Orbis labels turns "PLAYER (ACTION):", and models copy that shape for their
+  // own characters ("NPC (RELIC):"). Strip only uppercase NPC labels at line start.
+  text = text.replace(/^[ \t]*(?:\*\*)?NPC\s*(?:\([^()\n]{1,60}\))?(?:\*\*)?\s*:\s*/gm, "");
   text = text.replace(/\n{3,}/g, "\n\n");
   return text.trim();
 }

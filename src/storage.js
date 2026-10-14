@@ -28,6 +28,10 @@ function checkStoryBinding(story) {
 const THEME_KEY = "hw:ember:theme:v1";
 const FONT_KEY = "hw:ember:font:v1";
 
+// Each preference needs its own key. Density used to share the font key, so
+// choosing a layout reset the text size and moving the slider reset the layout.
+const PREFERENCE_KEYS = { theme: THEME_KEY, font: FONT_KEY, density: "hw:ember:density:v1" };
+
 export function loadStory() {
   try {
     const raw = localStorage.getItem(activeKey);
@@ -52,12 +56,14 @@ export function clearStory() {
 }
 
 export function getPreference(name, fallback) {
-  const key = name === "theme" ? THEME_KEY : FONT_KEY;
+  const key = PREFERENCE_KEYS[name];
+  if (!key) return fallback;
   try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; }
 }
 
 export function setPreference(name, value) {
-  const key = name === "theme" ? THEME_KEY : FONT_KEY;
+  const key = PREFERENCE_KEYS[name];
+  if (!key) return;
   try { localStorage.setItem(key, value); } catch { /* preference persistence is optional */ }
 }
 
