@@ -114,7 +114,7 @@ test("reroll preserves original reply until generation succeeds and requires lat
   assert.match(app,/const generationStory=isReplacement \? \{\.\.\.state,turns:state\.turns\.slice\(0,-1\)\} : state/);
   assert.match(app,/state\.revision !== expectedRevision/);
   assert.match(app,/replaceProviderTurn\(state,replaceReplyId,result\.text\)/);
-  assert.match(app,/removeLatestProviderTurn\(state,turn\.id\)/);
+  assert.match(app,/removeProviderTurn\(state,turn\.id\)/);
   assert.match(app,/state\.turns\.at\(-2\)\?\.source!=="player"/);
 });
 
@@ -132,7 +132,8 @@ test("Account & NovelAI header link uses readable Ember colors in every link sta
 test("player messages provide Copy and Edit actions, but no destructive provider reroll actions",()=>{
   assert.match(app,/if \(turn\.source === "provider" \|\| turn\.source === "player"\)/);
   assert.match(app,/isProvider=turn\.source==="provider"/);
-  assert.match(app,/if \(\(action==="delete" \|\| action==="regenerate"\) && !latest\) continue/);
+  assert.match(app,/if \(action==="delete" && !isProvider\) continue/);
+  assert.match(app,/if \(action==="regenerate" && !latest\) continue/);
   assert.match(app,/item\.source==="provider" \|\| item\.source==="player"/);
   assert.match(app,/replacePlayerTurn\(state,turn\.id,field\.value\)/);
   assert.match(app,/field\.maxLength=turn\.source==="player" \? MAX_INPUT : 32000/);
@@ -166,4 +167,16 @@ test("story copy uses async clipboard with a manual read-only selection fallback
   assert.match(app,/input\.readOnly=true/);
   assert.match(app,/input\.select\(\)/);
   assert.match(app,/Review fictional names and content before sharing/);
+});
+
+
+test("older provider turns display Delete while Regenerate stays limited to the latest AI reply",()=>{
+  assert.match(app,/\["delete","✕","Delete generated reply"\]/);
+  assert.match(app,/if \(action==="delete" && !isProvider\) continue/);
+  assert.match(app,/if \(action==="regenerate" && !latest\) continue/);
+  assert.match(app,/index<state\.turns\.length-1/);
+  assert.match(app,/Deleting?/i);
+  assert.match(app,/All later player messages and AI replies will be kept unchanged/);
+  assert.match(app,/setStory\(removeProviderTurn\(state,turn\.id\)\)/);
+  assert.match(app,/if\(turn\.source!=="provider"\)return/);
 });
