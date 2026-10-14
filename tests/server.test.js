@@ -37,7 +37,7 @@ async function fixture(mode = 'character', envOverrides = {}) {
       assert.deepEqual(Object.keys(body).sort(), ['appFormattingGuidance','linkId','turns']);
       assert.equal(typeof body.appFormattingGuidance,'string');
       assert.ok(body.appFormattingGuidance.length <= 1800);
-      assert.match(body.appFormattingGuidance,/Text in \\*asterisks\\*/);
+      assert.ok(body.appFormattingGuidance.includes('Text in *asterisks*'));
       if (envOverrides.TEST_BRIDGE_SCHEMA_REJECT) {
         return new Response(JSON.stringify({error:'Invalid Ember generation request.'}),{status:400});
       }
