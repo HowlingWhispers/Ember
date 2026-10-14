@@ -194,16 +194,17 @@ export function replaceProviderTurn(state,turnId,rawText) {
     i===index?{...turn,text}:turn)};
 }
 /**
- * Delete any selected AI turn without rewriting subsequent player or provider
- * turns. History continuity may change, so the UI warns before an older delete.
+ * Rewind a story to just before a selected AI generation.
+ * Drop that reply and every later turn, including subsequent player messages.
+ * The player message that originally prompted the reply stays available
+ * for a new continuation. Existing story objects are never mutated.
  */
 export function removeProviderTurn(state,turnId) {
   if(!state || !Array.isArray(state.turns) || typeof turnId!=="string" || !turnId)
     throw new Error("Generated reply was not found.");
   const index=state.turns.findIndex(turn=>turn.id===turnId && turn.source==="provider");
   if(index<0)throw new Error("Generated reply was not found.");
-  return {...state,revision:state.revision+1,
-    turns:state.turns.filter((_,i)=>i!==index)};
+  return {...state,revision:state.revision+1,turns:state.turns.slice(0,index)};
 }
 export function removeLatestProviderTurn(state,turnId) {
   const latest=state?.turns?.at(-1);
