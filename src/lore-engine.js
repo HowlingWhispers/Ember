@@ -19,7 +19,7 @@ export function checkLoreEntry(entry, context, book, round = 0) {
   const scanned = Array.isArray(context) ? (depth ? context.slice(-depth) : []).join("\n") : String(context);
   const primaryMatch = entry.keys.some(key => contains(scanned, key, entry.caseSensitive, entry.matchWholeWords !== false));
   if (!entry.constant && !primaryMatch) return { active:false, reason:"no primary keyword match" };
-  if (!entry.constant && entry.selective) {
+  if (!entry.constant && entry.selective && entry.secondaryKeys.length) {
     const matches = entry.secondaryKeys.map(key => contains(scanned, key, entry.caseSensitive, entry.matchWholeWords !== false));
     const any = matches.some(Boolean), all = matches.length > 0 && matches.every(Boolean);
     const accepted = entry.selectiveLogic === 0 ? any
