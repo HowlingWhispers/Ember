@@ -1,6 +1,7 @@
 // Ember-native roleplay context compiler. No account service, Orbis API, or provider dependency.
 // All imported character/card/lore content is untrusted fiction reference data.
 import { activateLorebooks } from "./lore-engine.js";
+import {DEFAULT_REPLY_LENGTH,replyLength} from "./reply-length.js";
 
 export const EMBER_CONTEXT_LIMIT = 22000;
 const own = (v,k) => Object.prototype.hasOwnProperty.call(v,k);
@@ -99,7 +100,7 @@ function fitReference(name,fields,allowance) {
   throw new Error("The V2 character or persona needs more space than Ember's context budget permits.");
 }
 
-export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_CONTEXT_LIMIT,maxLoreTokens=3200}={}) {
+export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_CONTEXT_LIMIT,maxLoreTokens=3200,generationLength=DEFAULT_REPLY_LENGTH}={}) {
   if (!story || typeof story !== "object" || !Array.isArray(story.turns)
     || !Array.isArray(bindings) || bindings.length > 100) throw new Error("Invalid Ember story context.");
   if (!Number.isInteger(maxChars) || maxChars < 3000 || maxChars > 50000)
@@ -126,7 +127,11 @@ export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_
   if(!character && normalized.some(a=>a.kind==="character" && bindings.some(b=>b.id===a.id&&b.enabled!==false)))
     warnings.push("Multiple characters attached; select one as the main roleplay character.");
 
+  const preset=replyLength(generationLength);
   const header=[
+    "RESPONSE LENGTH: "+preset.label+". Aim for about "+preset.targetWords+" words, never more than "+preset.maxWords+" words. This is one brief conversational turn, not an entire scene.",
+    "Finish a complete sentence before the output token allowance ends. Favor one NPC reaction, a little physical action and only one dialogue exchange.",
+    "Avoid repetitive apologies, lengthy recaps, unsolicited big promises, and out-of-character questions to the reader.",
     "EMBER / FREEFORM ROLEPLAY",
     "Continue the fictional scene in English. Describe NPCs and the world, not the player's unchosen actions.",
     "The PLAYER PERSONA below is the human-controlled protagonist, NOT an NPC or narrator voice. Refer to the player by that identity when appropriate.",
