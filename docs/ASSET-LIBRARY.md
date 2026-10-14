@@ -10,6 +10,8 @@
 - `src/lore-engine.js`: bounded, deterministic keyword matching, selective secondary triggers, constant entries, probability checks, recursion cap, token-budget approximation, diagnostic results.
 - `src/library-ui.js`, `src/library.css`: My Library browser UI, separate Characters and Lorebooks sections, previews, source export, rename, delete, backup and restore, per-story attach/disable, lore trigger diagnostics and greeting selection.
 - `src/app.js`: opens a new local story with the chosen imported greeting, attaches the character, and preserves its selected scenario in story metadata.
+- `src/asset-edit.js`, `src/asset-editor-ui.js`: non-destructive editing of V2 character identity, description, personality, scenario and openings; standalone lorebook descriptions, budgets, keywords, entry content and enable/constant/selective flags. Save As creates a *new* validated JSON asset, preserving unedited metadata/extensions. Original PNG cards stay intact and edited copies export as V2 JSON.
+- `src/library.css`: explicit themed styling for library backup/restore buttons and accessible editing forms.
 
 ## Provenance and storage
 
@@ -29,7 +31,7 @@ Source-specific lore fields not normalized into runtime behavior are preserved i
 
 1. **No complete standalone AI provider:** Ember's online runtime still authenticates via Orbis and routes NovelAI generation through Orbis. Importing and organizing assets does not call Orbis, but this is not yet an Orbis-independent browser service.
 2. **No imported AI context in live generation:** The library can attach assets and run local lore activation diagnostics. The current provider bridge does not accept full imported character and lore contexts. Do not label story-asset attachments as influencing AI until Ember owns and verifies its generation pipeline.
-3. **Editing:** Labels and assignments are editable. Full authoring/editing of imported character definitions and individual lore entries, together with edited-source export, remain to implement.
+3. **Editing:** Basic editing and new JSON copy export are implemented for V2 character content and standalone lorebook entries. Advanced V2 options (embedded book editing, tags, creator metadata), full lore entry activation controls and in-place original replacement are not implemented. Source originals are preserved deliberately.
 4. **Lorebook parity:** Common keyword/constant/selective/probability/budget/recursion behavior exists, but advanced triggers such as regex keys, inclusion groups, role/position routing, cooldown/sticky logic and provider-accurate token budgets need dedicated compatibility tests before declaring full SillyTavern parity.
 5. **Browser QA:** GitHub CI covers parser and pure activation tests, but desktop/mobile dialog behavior, IndexedDB transactions, local backup restoration and genuine uploaded fixtures require end-to-end/manual verification. Tests of the actual examples should be performed locally without publishing third-party material to the repo.
 6. **Story snapshotting:** The binding records currently reference library assets by ID; story-specific immutable snapshots and cleanup of deleted-asset references remain planned.
@@ -37,8 +39,8 @@ Source-specific lore fields not normalized into runtime behavior are preserved i
 
 ## Next recommended milestones
 
-- Complete IndexedDB/browser integration testing and actual uploaded-file QA before live deployment.
-- Implement full character and lorebook editing plus edited-copy export.
+- Complete IndexedDB/browser integration testing, including the backup-button contrast fix and save-as-copy editor flows, before live deployment. The user has previously verified the old My Library screen with Heather and Rainier; the latest fixes and edit workflow still need verification.
+- Expand character and lorebook editing to remaining supported options and add browser-based edit/backup/restore tests.
 - Implement the standalone Ember provider/context compiler and connect selected assets to generation, without extending Orbis's app-specific responsibilities.
 - Verify true offline/standalone access, account identity migration and story/asset portability.
 
