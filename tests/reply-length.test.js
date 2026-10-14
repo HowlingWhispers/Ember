@@ -65,7 +65,7 @@ test("the prompt explicitly requests a single brief complete turn and preserves 
    const result=compileEmberContext({story,assets:[],bindings:[],generationLength:key});
    assert.ok(result.prompt.startsWith("EMBER / FREEFORM ROLEPLAY\n"));
    assert.ok(result.prompt.endsWith("\nNARRATOR:"));
-   assert.ok(result.prompt.includes("never more than "+preset.maxWords+" words"));
+   assert.ok(result.prompt.includes("with at most "+preset.maxWords+" words in this turn"));
    assert.match(result.prompt,/Finish a complete sentence before the output token allowance ends/);
  }
 });
