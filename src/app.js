@@ -8,6 +8,7 @@ import { parseCodaCandidate, loadDiscovery, saveDiscovery, shouldDiscover } from
 import { mountAssetLibrary } from "./library-ui.js";
 import { getStoryAssets, getLocalAsset, setStoryAssets } from "./asset-store.js";
 import { compileEmberContext } from "./context-compiler.js";
+import {DEFAULT_REPLY_LENGTH,REPLY_LENGTHS,replyLengthOrDefault} from "./reply-length.js";
 import { segmentStoryText, storyCharacterHeading } from "./story-format.js";
 import { exportSanitizedStory } from "./story-share.js";
 
@@ -33,6 +34,7 @@ let soundSettings = readSoundPreferences(soundUserId);
 let soundBusy = false;
 let narrationBusy = false;
 let narrationError = "";
+let generationLength=replyLengthOrDefault(getPreference("replyLength",DEFAULT_REPLY_LENGTH));
 let latestContextCoverage = null;
 let activeCardName = {storyId:null,characterId:null,name:""};
 let activePersonaName = {storyId:null,personaId:null,name:""};
