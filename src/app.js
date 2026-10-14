@@ -8,6 +8,7 @@ import { parseCodaCandidate, loadDiscovery, saveDiscovery, shouldDiscover } from
 import { mountAssetLibrary } from "./library-ui.js";
 import { getStoryAssets, getLocalAsset, setStoryAssets } from "./asset-store.js";
 import { compileEmberContext } from "./context-compiler.js";
+import { segmentStoryText } from "./story-format.js";
 
 const root = document.querySelector("#app");
 const liveSession = globalThis.__EMBER_SESSION__ ?? null;
@@ -356,6 +357,30 @@ async function generateLastTurn() {
     renderNarrationState();
   }
 }
+// Render only DOM text nodes. Character cards and provider prose are never trusted HTML.
+function renderStoryProse(container,text) {
+  for (const paragraph of segmentStoryText(text)) {
+    const line=document.createElement("p");
+    line.className="story-paragraph";
+    if (paragraph.speaker) {
+      const speaker=document.createElement("strong");
+      speaker.className="story-speaker";
+      speaker.textContent=paragraph.speaker+": ";
+      line.append(speaker);
+    }
+    for (const part of paragraph.parts) {
+      if (part.kind==="narration") {
+        line.append(document.createTextNode(part.text));
+      } else {
+        const span=document.createElement("span");
+        span.className=part.kind==="dialogue"?"story-dialogue":"story-action";
+        span.textContent=part.text;
+        line.append(span);
+      }
+    }
+    container.append(line);
+  }
+}
 function render() {
   const disabled = !state;
   $("#waitButton").disabled = disabled || narrationBusy;
@@ -385,9 +410,9 @@ function render() {
     const label = document.createElement("div");
     label.className = "turn-label";
     label.textContent = turn.mode === "narrator" ? (turn.source === "provider" ? "STORY" : "PREVIEW OPENING") : "YOU";
-    const prose = document.createElement("p");
+    const prose = document.createElement("div");
     prose.className = "turn-prose";
-    prose.textContent = turn.source === "provider" ? cleanNarration(turn.text) : turn.text;
+    renderStoryProse(prose,turn.source === "provider" ? cleanNarration(turn.text) : turn.text);
     el.append(label, prose);
     $("#storyTurns").append(el);
   }
