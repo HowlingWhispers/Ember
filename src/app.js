@@ -1,4 +1,4 @@
-import { createStory, createStoryFromLaunch, addPlayerTurn, addNarratorTurn, addJournalNote, advanceTime, formatClock, MAX_INPUT, cleanNarration, replaceProviderTurn, removeLatestProviderTurn, wrapComposerSelection, exitComposerPair } from "./engine.js";
+import { createStory, createStoryFromLaunch, addPlayerTurn, addNarratorTurn, addJournalNote, advanceTime, formatClock, MAX_INPUT, cleanNarration, setStoryPersona, replaceProviderTurn, removeLatestProviderTurn, wrapComposerSelection, exitComposerPair } from "./engine.js";
 import { configureStoryScope, loadStory, persistStory, getPreference, setPreference, importStory, exportStory } from "./storage.js";
 import {
   readSoundPreferences, storeSoundPreferences, saveCustomRingtone,
@@ -33,6 +33,7 @@ let soundBusy = false;
 let narrationBusy = false;
 let narrationError = "";
 let activeCardName = {storyId:null,characterId:null,name:""};
+let activePersonaName = {storyId:null,personaId:null,name:""};
 let codaDiscovery = loadDiscovery(liveSession?.userId, state?.id ?? "unavailable");
 let codaDiscoveryBusy = false;
 const tabs = ["here", "places", "people", "journal", "almanac"];
@@ -48,10 +49,12 @@ root.innerHTML = `
         <span class="saved" id="saveStatus">● Local preview</span>
         <button class="quiet desktop-only" id="themeButton" type="button" title="Switch Lamplight / Daylight">◐ <span>Theme</span></button>
         <button class="quiet desktop-only" id="libraryButton" type="button">My Library</button>
+        <button class="quiet desktop-only" id="personaButton" type="button">My Persona</button>
         ${isGuest ? '<a class="quiet desktop-only" id="accountButton" href="/ember/account">Account &amp; NovelAI</a>' : ""}
         <button class="quiet desktop-only" id="prefsButton" type="button">Scene &amp; style</button>
         <details class="overflow"><summary class="quiet" aria-label="More story options">•••</summary><div class="popover">
           <button type="button" id="libraryMenuButton">My Library</button>
+          <button type="button" id="personaMenuButton">My Persona</button>
           ${isGuest ? '<button type="button" id="accountMenuButton">Account &amp; NovelAI</button>' : ""}
           <button type="button" id="exportButton">Save to file</button>
           <button type="button" id="importButton">Open saved file</button>
@@ -123,6 +126,7 @@ root.innerHTML = `
           <p class="phone-menu-status"><span id="phoneSaveStatus">● Saved locally</span><span id="phoneClock"></span></p>
           <div class="phone-menu-actions">
             <button type="button" data-menu-action="library">My Library</button>
+            <button type="button" data-menu-action="persona">My Persona</button>
             ${isGuest ? '<button type="button" data-menu-action="account">Account &amp; NovelAI</button>' : ""}
             <button type="button" data-menu-action="style">Scene & style</button>
             <button type="button" data-menu-action="theme">◐ Theme</button>
@@ -440,7 +444,7 @@ function render() {
     const label = document.createElement("div");
     label.className = "turn-label";
     label.textContent = turn.mode === "narrator" ? (turn.source === "provider"
-      ? storySpeakerName() : "PREVIEW OPENING") : "YOU";
+      ? storySpeakerName() : "PREVIEW OPENING") : playerPersonaName();
     const prose = document.createElement("div");
     prose.className = "turn-prose";
     renderStoryProse(prose,turn.source === "provider" ? cleanNarration(turn.text) : turn.text,
@@ -810,7 +814,7 @@ $("#newButton").addEventListener("click", () => {
   } catch (err) { toast(`Unable to create story: ${err.message}`); }
 });
 // Phone menu entries reuse the header controls, which phones hide.
-const menuTargets = { library: "#libraryMenuButton", account: "#accountMenuButton", style: "#prefsMenuButton", theme: "#themeButton", export: "#exportButton", import: "#importButton", new: "#newButton" };
+const menuTargets = { library: "#libraryMenuButton", persona:"#personaMenuButton", account: "#accountMenuButton", style: "#prefsMenuButton", theme: "#themeButton", export: "#exportButton", import: "#importButton", new: "#newButton" };
 root.querySelector(".phone-menu").addEventListener("click", event => {
   const target = menuTargets[event.target.closest("[data-menu-action]")?.dataset.menuAction];
   if (!target) return;
