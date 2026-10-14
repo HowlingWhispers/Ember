@@ -175,7 +175,7 @@ test("older provider turns display Delete while Regenerate stays limited to the 
   assert.match(app,/if \(action==="delete" && !isProvider\) continue/);
   assert.match(app,/if \(action==="regenerate" && !latest\) continue/);
   assert.match(app,/index<state\.turns\.length-1/);
-  assert.match(app,/Deleting?/i);
+  assert.match(app,/Delete this older AI reply\?/);
   assert.match(app,/All later player messages and AI replies will be kept unchanged/);
   assert.match(app,/setStory\(removeProviderTurn\(state,turn\.id\)\)/);
   assert.match(app,/if\(turn\.source!=="provider"\)return/);
