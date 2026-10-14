@@ -85,5 +85,9 @@ test('desktop markup and controls are unchanged outside the phone layout',()=>{
   assert.match(css,/\n\.phone-only, \.short-label, \.send-glyph \{ display: none; \}/);
   assert.ok(css.indexOf('.phone-only, .short-label') < css.indexOf('@media (max-width: 600px), (pointer: coarse)'));
   assert.match(app,/<span class="long-label">Pass the turn<\/span>/);
-  assert.match(app,/data-mode="action" class="selected"/);
+  assert.match(app,/data-format="action"/);
+  assert.match(app,/data-format="speech"/);
+  assert.match(app,/data-format="thought"/);
+  assert.match(phoneBlock,/\.mode-switch \{ display: flex; grid-column: 1 \/ -1;/);
+  assert.doesNotMatch(app,/id="modeCycle"/);
 });
