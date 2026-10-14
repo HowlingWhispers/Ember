@@ -180,7 +180,11 @@ export function createEmberServer({
         method: 'POST',
         headers: { Authorization: `Bearer ${env.EMBER_BRIDGE_SECRET}`, 'Content-Type':'application/json' },
         body: JSON.stringify({
-          linkId, turns, task,
+          linkId, turns,
+          // Narration is the original bridge default. Do not send an extra
+          // task:"narration" property: Orbis validators before discovery
+          // support reject unexpected properties (strict schema).
+          ...(task === "discovery" ? { task } : {}),
           appFormattingGuidance: task === "discovery" ? CODA_DISCOVERY_GUIDANCE
             : EMBER_FORMATTING_GUIDANCE + (characters.length
               ? "\nPreviously approved story-local characters (not Orbis canon):\n" +
