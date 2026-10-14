@@ -55,6 +55,13 @@ button:focus-visible, summary:focus-visible, textarea:focus-visible, input:focus
 .saved { border: 0; color: var(--accent); }
 .quiet, .chip-button { border: 1px solid var(--border); border-radius: 8px; background: transparent; padding: 9px 13px; font-size: 12px; }
 .quiet:hover, .chip-button:not(:disabled):hover { border-color: var(--gold); background: var(--paper-warm); }
+/* Account is an anchor, not a <button>: override browser link and visited colors.
+   Keep its appearance identical to the other header controls in either theme. */
+.top-actions #accountButton:link,
+.top-actions #accountButton:visited { color: var(--text); text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+.top-actions #accountButton:hover { color: var(--gold); text-decoration: none; }
+.top-actions #accountButton:focus-visible { color: var(--gold); outline: 2px solid var(--gold); outline-offset: 3px; }
+
 .overflow { position: relative; }
 .overflow summary { list-style: none; display: block; }
 .overflow summary::-webkit-details-marker { display: none; }
