@@ -232,6 +232,14 @@ export function advanceTime(state, elapsedMinutes) {
   };
 }
 
+// Explicit player-maintained continuity facts. Ember never invents a summary.
+export function setStoryMemory(state,rawText) {
+  if(!state || typeof state!=="object") throw new Error("Open a story first.");
+  if(typeof rawText!=="string" || rawText.length>4000)
+    throw new Error("Story memory must be at most 4,000 characters.");
+  return {...state,revision:state.revision+1,storyMemory:rawText.trim()};
+}
+
 export function addJournalNote(state, rawText) {
   const text = rawText.trim();
   if (!text || text.length > MAX_NOTE) throw new Error("Note must be between 1 and 4,000 characters");
@@ -253,6 +261,7 @@ export function validateStory(data) {
       || (link.mode === "sandbox" ? link.assetId !== null : !isText(link.assetId, 160) || !link.assetId))
       throw new Error("Invalid Orbis launch binding");
   }
+  if(data.storyMemory!==undefined && !isText(data.storyMemory,4000)) throw new Error("Invalid story memory.");
   const w = data.world;
   if (!w || !isText(w.name, 200) || !isText(w.location, 200) || !isText(w.season, 100) || !isText(w.weather, 100) || w.source !== "preview" && w.source !== "orbis" || !Number.isSafeInteger(w.day) || w.day < 1 || !Number.isInteger(w.minute) || w.minute < 0 || w.minute >= minutesPerDay) throw new Error("Invalid world data");
   if (!Array.isArray(data.turns) || data.turns.length > MAX_TURNS || !data.turns.every(t => t && isText(t.id, 160) && t.id && isText(t.text, MAX_INPUT * 4) && ["narrator", ...allowedModes].includes(t.mode) && ["player", "preview", "provider"].includes(t.source))) throw new Error("Invalid story turns");
