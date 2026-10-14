@@ -3,7 +3,7 @@
  * Never fabricate closing punctuation, speech, actions, or a second paid call.
  */
 const countWords=value=>value.trim().match(/\S+/gu)?.length||0;
-const COMPLETE=/[.!?]+(?:["”'’)\]]*)(?=\s|$)/gu;
+const COMPLETE=/[.!?]+(?:["”'’)\]]|\*)*(?=\s|$)/gu;
 const closesQuote=value=>/["”]$/u.test(value);
 
 function balancedMarkers(value) {
@@ -25,7 +25,7 @@ export function boundCompletedReply(input,maxWords) {
   const text=input.replace(/\r\n?/g,"\n").trim();
   if(!text)return {text:"",shortened:false};
   const withinBudget=countWords(text)<=maxWords;
-  const endsCleanly=/(?:[.!?]+(?:["”'’)\]]*)|["”])$/u.test(text);
+  const endsCleanly=/(?:[.!?]+(?:["”'’)\]]|\*)*|["”])$/u.test(text);
   if(withinBudget && endsCleanly && balancedMarkers(text))
     return {text,shortened:false};
   let best="";
