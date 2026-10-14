@@ -1,4 +1,5 @@
 import test from "node:test";
+import { deflateSync } from "node:zlib";
 import assert from "node:assert/strict";
 import { importEmberAsset, parseV2Card, parseStandaloneLorebook } from "../src/asset-import.js";
 import { activateLorebooks, checkLoreEntry } from "../src/lore-engine.js";
@@ -89,4 +90,28 @@ test("local backup restores original character and standalone lorebook bytes",()
  assert.deepEqual(restored[1].sourceBytes,b.sourceBytes);
  assert.equal(restored[1].fields.entries.length,13);
  assert.throws(()=>parseLocalLibraryBackup(archive.replace("ember-local-asset-library","unrelated-backup")),/supported/);
+});
+
+test("reads a valid V2 PNG with embedded chara metadata",()=>{
+ function crc32(buffer) {
+   let crc=0xffffffff;
+   for(const byte of buffer){crc^=byte;for(let b=0;b<8;b++)crc=(crc>>>1)^(0xedb88320&-(crc&1));}
+   return (crc^0xffffffff)>>>0;
+ }
+ function chunk(type,data){
+   const name=Buffer.from(type,"ascii");
+   const size=Buffer.alloc(4);size.writeUInt32BE(data.length);
+   const tail=Buffer.alloc(4);tail.writeUInt32BE(crc32(Buffer.concat([name,data])));
+   return Buffer.concat([size,name,data,tail]);
+ }
+ const header=Buffer.from([0,0,0,1,0,0,0,1,8,6,0,0,0]);
+ const pixel=deflateSync(Buffer.from([0,255,0,0,255]));
+ const encoded=Buffer.from(JSON.stringify(v2)).toString("base64");
+ const meta=Buffer.concat([Buffer.from("chara\0","ascii"),Buffer.from(encoded,"ascii")]);
+ const png=Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk("IHDR",header),
+   chunk("tEXt",meta),chunk("IDAT",pixel),chunk("IEND",Buffer.alloc(0))]);
+ const card=importEmberAsset(png,"Heather.png");
+ assert.equal(card.sourceFormat,"v2-png");
+ assert.equal(card.fields.alternateGreetings.length,2);
+ assert.equal(card.fields.characterBook.entries.length,1);
 });
