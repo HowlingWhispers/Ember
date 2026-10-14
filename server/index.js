@@ -196,6 +196,15 @@ export function createEmberServer({
       let payload;
       try { payload = await upstream.json(); } catch { payload = {}; }
       if (!upstream.ok) {
+        // A strict Orbis bridge schema rejection happens before the NovelAI
+        // provider is called. Never mislabel it as a NovelAI refusal.
+        if (upstream.status === 400 && payload.error === 'Invalid Ember generation request.') {
+          return {
+            status: 502,
+            error: 'Ember and Orbis generation request formats do not match. Verify the deployed Orbis bridge version.',
+            code: 'EMBER_BRIDGE_SCHEMA_MISMATCH',
+          };
+        }
         const safeStatuses = [400,401,409,429,502,504];
         return { status: safeStatuses.includes(upstream.status) ? upstream.status : 502,
           error: typeof payload.error === 'string' && payload.error.length <= 300
