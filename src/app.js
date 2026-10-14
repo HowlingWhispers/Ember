@@ -390,12 +390,12 @@ function renderNarrationState() {
   }
   $(".story-column").classList.toggle("has-feedback", narrationBusy || !$("#narrationError").hidden);
 }
-async function compileGuestHistory(snapshot) {
+async function compileGuestHistory(snapshot,requestedLength=generationLength) {
   const bindings=await getStoryAssets(liveSession.userId,snapshot.id);
   const ids=[...new Set([...bindings.filter(b=>b.enabled!==false).map(b=>b.id),
     snapshot.assetSetup?.personaId].filter(Boolean))];
   const assets=(await Promise.all(ids.map(id=>getLocalAsset(liveSession.userId,id)))).filter(Boolean);
-  return compileEmberContext({story:snapshot,assets,bindings,generationLength});
+  return compileEmberContext({story:snapshot,assets,bindings,generationLength:requestedLength});
 }
 function recordContextCoverage(compiled,storyId) {
   latestContextCoverage={
@@ -417,6 +417,7 @@ async function generateLastTurn(replaceReplyId=null) {
   if (!last || last.source!=="player") return;
   const expectedStoryId = state.id;
   const expectedRevision = state.revision;
+  const requestedLength=generationLength;
   narrationBusy = true;
   narrationError = "";
   renderNarrationState();
@@ -437,9 +438,9 @@ async function generateLastTurn(replaceReplyId=null) {
     }
     let requestBody = { turns, characters: codaDiscovery.profiles.map(({name,role,established}) => ({name,role,established})).slice(0,12) };
     if (isGuest) {
-      const compiled=await compileGuestHistory(generationStory);
+      const compiled=await compileGuestHistory(generationStory,requestedLength);
       recordContextCoverage(compiled,generationStory.id);
-      requestBody = {prompt:compiled.prompt,length:generationLength};
+      requestBody = {prompt:compiled.prompt,length:requestedLength};
     }
     const response = await fetch(isGuest ? "/ember/api/guest/generate" : "/ember/api/generate",{
       method:"POST",credentials:"same-origin",cache:"no-store",
