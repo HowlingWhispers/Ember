@@ -149,3 +149,21 @@ test("historical sent-message edits warn when future narration exists",()=>{
   assert.match(app,/Editing it will not rewrite or remove them/);
   assert.match(app,/state\.revision!==expectedRevision/);
 });
+
+
+test("sanitized full-story copy has a visible reader button and desktop plus phone menu actions",()=>{
+  assert.match(app,/id="copySanitizedButton"[^>]*class="story-share-button"/);
+  assert.match(app,/id="copySanitizedMenuButton"/);
+  assert.match(app,/data-menu-action="copySanitized"/);
+  assert.match(app,/copySanitized:"#copySanitizedMenuButton"/);
+  assert.match(app,/exportSanitizedStory\(current,\{characterName,personaName\}\)/);
+  assert.match(css,/\.story-share-button \{[^}]*color: var\(--text\)/);
+  assert.match(css,/\.story-share-button:hover, \.story-share-button:focus-visible \{[^}]*color: var\(--gold\)/);
+});
+test("story copy uses async clipboard with a manual read-only selection fallback",()=>{
+  assert.match(app,/navigator\.clipboard\?\.writeText/);
+  assert.match(app,/showManualStoryCopy\(transcript\)/);
+  assert.match(app,/input\.readOnly=true/);
+  assert.match(app,/input\.select\(\)/);
+  assert.match(app,/Review fictional names and content before sharing/);
+});
