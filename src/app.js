@@ -283,6 +283,25 @@ async function loadActiveCardName(snapshot=state) {
     render();
   } catch { /* Keep the saved V2 story-title fallback if IndexedDB is unavailable. */ }
 }
+async function loadActivePersonaName(snapshot=state) {
+  const id=snapshot?.assetSetup?.personaId;
+  if (!snapshot || !id) return;
+  try {
+    const card=await getLocalAsset(liveSession?.userId ?? "local",id);
+    if(state?.id!==snapshot.id || state?.assetSetup?.personaId!==id) return;
+    const name=card?.kind==="character" && typeof card.fields?.name==="string"
+      ? card.fields.name.trim() : "";
+    if(activePersonaName.storyId===snapshot.id && activePersonaName.personaId===id
+      && activePersonaName.name===name) return;
+    activePersonaName={storyId:snapshot.id,personaId:id,name};
+    render();
+  } catch { /* Keep player identity private and use a neutral heading. */ }
+}
+function playerPersonaName(snapshot=state) {
+  const id=snapshot?.assetSetup?.personaId;
+  return id && activePersonaName.storyId===snapshot?.id && activePersonaName.personaId===id
+    ? (activePersonaName.name || "YOU") : "YOU";
+}
 function storySpeakerName(snapshot=state) {
   const id=snapshot?.assetSetup?.characterId;
   const verified=activeCardName.storyId===snapshot?.id && activeCardName.characterId===id
@@ -297,6 +316,7 @@ function setStory(next) {
   loadError = "";
   render();
   void loadActiveCardName(next);
+  void loadActivePersonaName(next);
 }
 function renderNarrationState() {
   const live = Boolean(liveSession);
@@ -360,8 +380,9 @@ async function generateLastTurn(replaceReplyId=null) {
     let requestBody = { turns, characters: codaDiscovery.profiles.map(({name,role,established}) => ({name,role,established})).slice(0,12) };
     if (isGuest) {
       const bindings = await getStoryAssets(liveSession.userId, state.id);
-      const assets = (await Promise.all(bindings.filter(b => b.enabled !== false)
-        .map(b => getLocalAsset(liveSession.userId, b.id)))).filter(Boolean);
+      const ids=[...new Set([...bindings.filter(b=>b.enabled!==false).map(b=>b.id),
+        generationStory.assetSetup?.personaId].filter(Boolean))];
+      const assets=(await Promise.all(ids.map(id=>getLocalAsset(liveSession.userId,id)))).filter(Boolean);
       const compiled = compileEmberContext({story:generationStory,assets,bindings});
       requestBody = {prompt:compiled.prompt};
     }
@@ -829,6 +850,17 @@ $("#closeRail").addEventListener("click", closeRail);
 document.addEventListener("keydown", event => { if (event.key === "Escape") { closeRail(); hideToast(); } });
 const assetLibrary = mountAssetLibrary({
   root, owner: () => liveSession?.userId ?? "local", getStory: () => state,
+  onSelectPersona: async asset => {
+    if (narrationBusy) throw new Error("Wait until generation finishes before switching personas.");
+    if (!state) throw new Error("Open a story before choosing a persona.");
+    if (asset && asset.kind!=="character") throw new Error("Personas must be Character Card V2 files.");
+    if (asset && state.assetSetup?.characterId===asset.id)
+      throw new Error("You cannot play as the NPC character in the same story.");
+    const next=setStoryPersona(state,asset?.id??null);
+    setStory(next);
+    toast(asset ? "Playing as "+asset.fields.name+" (V2 persona)." : "Player persona cleared.");
+    return true;
+  },
   onStartCharacter: async (asset, openingIndex) => {
     if (narrationBusy) { toast("Wait for narration to finish before changing stories."); return false; }
     if (!window.confirm("Start a new story with this character? Export your current story first if you want to keep it.")) return false;
@@ -836,7 +868,9 @@ const assetLibrary = mountAssetLibrary({
     const message = [asset.fields.firstMessage, ...asset.fields.alternateGreetings][openingIndex] || "";
     const greeting = message.replaceAll("{{char}}", asset.fields.name).replaceAll("{{user}}", "you");
     fresh.title = "Story with " + asset.fields.name;
-    fresh.assetSetup = { characterId: asset.id, openingIndex, scenario: asset.fields.scenario };
+    fresh.assetSetup = { characterId: asset.id, openingIndex, scenario: asset.fields.scenario,
+      ...(state?.assetSetup?.personaId && state.assetSetup.personaId!==asset.id
+        ? {personaId:state.assetSetup.personaId} : {}) };
     if (greeting) fresh.turns = [{ id: crypto.randomUUID(), source: "preview", mode: "narrator", text: greeting }];
     if (isGuest) await setStoryAssets(liveSession.userId,fresh.id,[{id:asset.id,enabled:true,greeting:openingIndex}]);
     narrationError = "";
@@ -892,13 +926,16 @@ $("#storyTurns").addEventListener("click",event=>{
     void generateLastTurn(turn.id);
   }
 });
-$("#libraryButton").addEventListener("click", () => void assetLibrary.open());
+$("#libraryButton").addEventListener("click", () => void assetLibrary.open("character"));
+$("#personaButton").addEventListener("click", () => void assetLibrary.open("persona"));
+$("#personaMenuButton").addEventListener("click", () => { $(".overflow").open = false; void assetLibrary.open("persona"); });
 $("#libraryMenuButton").addEventListener("click", () => { $(".overflow").open = false; void assetLibrary.open(); });
 if (isGuest) $("#accountMenuButton").addEventListener("click",()=>{window.location.href="/ember/account";});
 updateTheme();
 updateSoundSettings();
 render();
 void loadActiveCardName();
+void loadActivePersonaName();
 if (loadError) toast(loadError);
 // An Ember tab must stop showing private material when its Orbis session ends.
 if (liveSession) {
