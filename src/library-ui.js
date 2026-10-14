@@ -3,6 +3,8 @@ import { listLocalAssets, importLocalAsset, renameLocalAsset, deleteLocalAsset,
   downloadLocalAsset, getStoryAssets, setStoryAssets } from "./asset-store.js";
 import { activateLorebooks } from "./lore-engine.js";
 import { exportLocalLibrary, parseLocalLibraryBackup } from "./asset-backup.js";
+import { buildEditedAsset } from "./asset-edit.js";
+import { renderAssetEditor, readAssetEditor, greetingEditor } from "./asset-editor-ui.js";
 
 const escapeHtml = value => String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;")
   .replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;");
@@ -14,14 +16,14 @@ export function mountAssetLibrary({root,owner,getStory,onStartCharacter}) {
   shell.innerHTML = '<div class="asset-frame"><header class="asset-header"><div><p class="asset-eyebrow">EMBER · LOCAL STORAGE</p><h2 id="assetLibraryTitle">My Library</h2><p>Character cards and lorebooks stored in this browser, never uploaded to Orbis.</p></div><button type="button" data-action="close" aria-label="Close library">✕</button></header><div class="asset-tools"><div class="asset-tabs" role="group" aria-label="Asset type"><button type="button" data-tab="character">Characters</button><button type="button" data-tab="lorebook">Lorebooks</button></div><label class="asset-search"><span class="visually-hidden">Search local assets</span><input id="assetSearch" type="search" placeholder="Search this library"></label><button class="asset-primary" type="button" data-action="import">＋ Import file</button><input id="assetImportFile" type="file" accept=".json,.png,application/json,image/png" hidden><button type="button" data-action="backup">Backup library</button><button type="button" data-action="restore">Restore backup</button><input id="assetBackupFile" type="file" accept=".json,application/json" hidden></div><p class="asset-notice" id="assetLibraryStatus" role="status" aria-live="polite"></p><div class="asset-body"><div class="asset-list" id="assetItems"></div><section id="assetDetail" class="asset-detail" aria-label="Selected asset"></section></div><footer class="asset-footer">Your assets stay in this browser profile. Export backups before clearing browser data. Importing does not automatically change a story.</footer></div>';
   root.append(shell);
   const $ = sel => shell.querySelector(sel);
-  let assets = [], attached = [], type = "character", selectedId = null, search = "";
+  let assets = [], attached = [], type = "character", selectedId = null, search = "", editingAssetId = null;
   const current = () => assets.find(a => a.id === selectedId);
   const binding = id => attached.find(a => a.id === id);
   const status = value => { $("#assetLibraryStatus").textContent = value; };
   async function refresh(message = "") {
     assets = await listLocalAssets(owner());
     attached = getStory()?.id ? await getStoryAssets(owner(),getStory().id) : [];
-    if (selectedId && !current()) selectedId = null;
+    if (selectedId && !current()) { selectedId = null; editingAssetId = null; }
     render();
     status(message);
   }
@@ -41,10 +43,11 @@ export function mountAssetLibrary({root,owner,getStory,onStartCharacter}) {
       $("#assetDetail").innerHTML = '<div class="asset-empty"><h3>Select an asset</h3><p>Preview its contents, export the original, or attach it to your current story.</p></div>';
       return;
     }
+    if (editingAssetId === asset.id) { $("#assetDetail").innerHTML = renderAssetEditor(asset); return; }
     const link = binding(asset.id);
     const attach = '<label class="asset-attach"><input type="checkbox" id="assetAttach" '+(link?.enabled?'checked':'')+'> Use in current story</label>';
     const header = '<div class="asset-detail-top"><div><span>'+escapeHtml(asset.sourceFormat)+'</span><h3>'+escapeHtml(asset.title)+'</h3><small>'+escapeHtml(asset.filename)+'</small></div></div>';
-    const tools = '<div class="asset-actions"><button type="button" data-action="export">Export original</button><button type="button" data-action="rename">Rename</button><button type="button" data-action="delete">Delete</button></div>';
+    const tools = '<div class="asset-actions"><button type="button" data-action="edit">Edit copy</button><button type="button" data-action="export">Export original</button><button type="button" data-action="rename">Rename</button><button type="button" data-action="delete">Delete</button></div>';
     if (asset.kind === "character") {
       const c=asset.fields;
       const openings = [c.firstMessage,...c.alternateGreetings];
@@ -88,8 +91,8 @@ export function mountAssetLibrary({root,owner,getStory,onStartCharacter}) {
     const tab=event.target.closest("[data-tab]")?.dataset.tab;
     const id=event.target.closest("[data-select]")?.dataset.select;
     const action=event.target.closest("[data-action]")?.dataset.action;
-    if(tab){type=tab;selectedId=null;render();return;}
-    if(id){selectedId=id;render();return;}
+    if(tab){type=tab;selectedId=null;editingAssetId=null;render();return;}
+    if(id){selectedId=id;editingAssetId=null;render();return;}
     if(!action)return;
     if(action==="close"){shell.close();return;}
     if(action==="import"){$("#assetImportFile").click();return;}
@@ -107,6 +110,13 @@ export function mountAssetLibrary({root,owner,getStory,onStartCharacter}) {
     }
     const asset=current();
     if(!asset)return;
+    if(action==="edit"){editingAssetId=asset.id;render();return;}
+    if(action==="cancel-edit"){editingAssetId=null;render();return;}
+    if(action==="add-greeting"){
+      $("#assetGreetingEdits")?.insertAdjacentHTML("beforeend",greetingEditor());
+      return;
+    }
+    if(action==="remove-greeting"){event.target.closest("[data-greeting-item]")?.remove();return;}
     try {
       if(action==="start" && asset.kind==="character"){
         const index=Number($("#assetGreeting").value)||0;
@@ -150,6 +160,23 @@ export function mountAssetLibrary({root,owner,getStory,onStartCharacter}) {
         status("Opening preference saved for this story. Story launch integration is pending.");
       }
     }catch(error){status(error.message);}
+  });
+  shell.addEventListener("submit",async event=>{
+    if(event.target.id!=="assetEditor")return;
+    event.preventDefault();
+    const asset=current();
+    if(!asset || editingAssetId!==asset.id)return;
+    const submit=event.target.querySelector('[type="submit"]');
+    submit.disabled=true;
+    try{
+      const updated=buildEditedAsset(asset,readAssetEditor(event.target,asset));
+      const result=await importLocalAsset(owner(),updated);
+      type=result.asset.kind;selectedId=result.asset.id;editingAssetId=null;
+      await refresh(result.duplicate
+        ? "An identical edited copy already exists. Opened that copy."
+        : "Saved an editable JSON copy locally. Your original is unchanged.");
+    }catch(error){status("Could not save edited copy: "+error.message);}
+    finally{submit.disabled=false;}
   });
   $("#assetSearch").addEventListener("input", event=>{search=event.target.value;render();});
   return {
