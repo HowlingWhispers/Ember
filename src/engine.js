@@ -121,7 +121,7 @@ export function addPlayerTurn(state, mode, rawText) {
     ...state,
     revision: state.revision + 1,
     turns: [...state.turns, { id: uuid(), mode, text, source: "player" }],
-    journal: [...state.journal, { id: uuid(), kind: "turn", text: `Player ${mode} recorded`, day: state.world.day, minute: state.world.minute }]
+    journal: [...state.journal, { id: uuid(), kind: "turn", text: "Player turn recorded", day: state.world.day, minute: state.world.minute }]
   };
 }
 
