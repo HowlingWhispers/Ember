@@ -458,6 +458,7 @@ async function generateLastTurn(replaceReplyId=null) {
       ? replaceProviderTurn(state,replaceReplyId,result.text)
       : addNarratorTurn(state,last.id,result.text);
     setStory(completed);
+    if(result.shortened===true) toast("NovelAI reply stopped at the last complete sentence within your selected length.");
     void discoverAfterNarration(completed);
     $("#storyScroll").scrollTop = $("#storyScroll").scrollHeight;
   } catch (err) {
@@ -725,6 +726,15 @@ $("#playerInput").addEventListener("input", () => {
   renderNarrationState();
 });
 // Toolbar selection is preserved on desktop and touch devices.
+if(isGuest) {
+  $("#replyLengthSelect").value=generationLength;
+  $("#replyLengthSelect").addEventListener("change",event=>{
+    generationLength=replyLengthOrDefault(event.target.value);
+    setPreference("replyLength",generationLength);
+    toast("NovelAI reply length: "+REPLY_LENGTHS[generationLength].label
+      +" (up to "+REPLY_LENGTHS[generationLength].maxWords+" words).");
+  });
+}
 $("#modeSwitch").addEventListener("pointerdown", event => {
   if (event.target.closest("[data-format]")) event.preventDefault();
 });
