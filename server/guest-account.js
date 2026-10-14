@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createGuestVault, GUEST_COOKIE_AGE } from "./guest-vault.js";
 import { generateNovelAI, EmberProviderError } from "./novelai.js";
+import {DEFAULT_REPLY_LENGTH,replyLength} from "../src/reply-length.js";
 const COOKIE="ember.guest";
 const TOKEN=/^[A-Za-z0-9_-]{43}$/;
 function writeJson(res,status,data) {
@@ -114,10 +115,15 @@ export function createGuestAccess({env,fetchFn=globalThis.fetch,rootDir,secureCo
       let body;
       try{body=await readJson(request,26000);}
       catch(error){writeJson(response,error.status||400,{error:"Invalid generation request."});return true;}
-      if(!body || typeof body!=="object" || Array.isArray(body) || Object.keys(body).join(",")!=="prompt"
+      if(!body || typeof body!=="object" || Array.isArray(body) || !["prompt","length,prompt"].includes(Object.keys(body).sort().join(","))
         || typeof body.prompt!=="string" || !body.prompt.startsWith("EMBER / FREEFORM ROLEPLAY\n")
         || body.prompt.length<80 || body.prompt.length>22000 || !body.prompt.endsWith("\nNARRATOR:")){
         writeJson(response,400,{error:"Invalid Ember story context."});return true;
+      }
+      let lengthSettings;
+      try {lengthSettings=replyLength(body.length??DEFAULT_REPLY_LENGTH);}
+      catch {
+        writeJson(response,400,{error:"Choose Short, Normal or Long generation length."});return true;
       }
       const current=Date.now();
       if(inFlight.has(person.profileId)){
@@ -133,8 +139,9 @@ export function createGuestAccess({env,fetchFn=globalThis.fetch,rootDir,secureCo
         lastPaidRequest.set(person.profileId,Date.now());
         const result=await generateNovelAI({
           token:settings.apiKey,model:settings.model,prompt:body.prompt,fetchFn,
+          maxTokens:lengthSettings.maxTokens,maxWords:lengthSettings.maxWords,
         });
-        writeJson(response,200,{text:result.text});
+        writeJson(response,200,{text:result.text,...(result.shortened?{shortened:true}:{})});
       }catch(error){
         const e=error instanceof EmberProviderError?error:null;
         writeJson(response,e?.status||502,{
