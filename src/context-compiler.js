@@ -79,6 +79,8 @@ export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_
     throw new Error("Invalid Ember context size.");
   const normalized=normalizeAssets(assets);
   const persona=playerPersona(normalized,story);
+  if (persona && bindings.some(b=>b.id===persona.id && b.enabled!==false))
+    throw new Error("Player persona is also attached as an NPC. Disable its NPC attachment before generating.");
   const character=primaryCharacter(normalized,bindings,story);
   if (story.assetSetup?.characterId && !character) {
     throw new Error("The selected character is missing or disabled in this story. Reattach it before generating.");
