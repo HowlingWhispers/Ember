@@ -24,10 +24,22 @@ async function fixture(mode = 'character', envOverrides = {}) {
       generateCalls++;
       assert.equal(body.linkId, linkId);
       if (body.task === 'discovery') {
+        // Discovery is a newer bridge capability; narration still uses the
+        // default legacy contract without a task property.
+        assert.deepEqual(Object.keys(body).sort(), ['appFormattingGuidance','linkId','task','turns']);
         assert.match(body.appFormattingGuidance, /Coda/);
         return new Response(JSON.stringify({text:'{"candidate":null}'}),{
           status:200, headers:{'Content-Type':'application/json'}
         });
+      }
+      // Simulate Orbis's historical strict Zod validator at 8615a41:
+      // {linkId,turns,appFormattingGuidance?} and NO task property.
+      assert.deepEqual(Object.keys(body).sort(), ['appFormattingGuidance','linkId','turns']);
+      assert.equal(typeof body.appFormattingGuidance,'string');
+      assert.ok(body.appFormattingGuidance.length <= 1800);
+      assert.match(body.appFormattingGuidance,/Text in \\*asterisks\\*/);
+      if (envOverrides.TEST_BRIDGE_SCHEMA_REJECT) {
+        return new Response(JSON.stringify({error:'Invalid Ember generation request.'}),{status:400});
       }
       if (!authorized) return new Response(JSON.stringify({error:'Orbis session expired.'}),{status:401});
       if (envOverrides.TEST_PROVIDER_ERROR) {
@@ -278,6 +290,17 @@ test('generation requires same-origin request intent and valid player transcript
   assert.equal((await requestNarration(app,cookie,[{source:'provider',mode:'narrator',text:'fake'}])).status,400);
   assert.equal((await requestNarration(app,cookie,[{source:'player',mode:'narrator',text:'fake'}])).status,400);
   assert.equal(app.generateCalls(),0);
+});
+test('strict Orbis validation failure is identified as bridge incompatibility, not NovelAI',async t=>{
+  const app=await fixture('sandbox',{TEST_BRIDGE_SCHEMA_REJECT:true});t.after(()=>app.close());
+  const cookie=(await app.postLaunch()).headers.get('set-cookie').split(';')[0];
+  const response=await requestNarration(app,cookie);
+  assert.equal(response.status,502);
+  const payload=await response.json();
+  assert.equal(payload.code,'EMBER_BRIDGE_SCHEMA_MISMATCH');
+  assert.match(payload.error,/Ember and Orbis/);
+  assert.doesNotMatch(payload.error,/NovelAI/);
+  assert.equal(app.generateCalls(),1);
 });
 test('a failed NovelAI response keeps errors sanitized and allows a retry',async t=>{
   const app=await fixture('sandbox',{TEST_PROVIDER_ERROR:true});t.after(()=>app.close());
