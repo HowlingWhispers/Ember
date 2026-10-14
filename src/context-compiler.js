@@ -129,10 +129,10 @@ export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_
 
   const preset=replyLength(generationLength);
   const header=[
+    "EMBER / FREEFORM ROLEPLAY",
     "RESPONSE LENGTH: "+preset.label+". Aim for about "+preset.targetWords+" words, never more than "+preset.maxWords+" words. This is one brief conversational turn, not an entire scene.",
     "Finish a complete sentence before the output token allowance ends. Favor one NPC reaction, a little physical action and only one dialogue exchange.",
     "Avoid repetitive apologies, lengthy recaps, unsolicited big promises, and out-of-character questions to the reader.",
-    "EMBER / FREEFORM ROLEPLAY",
     "Continue the fictional scene in English. Describe NPCs and the world, not the player's unchosen actions.",
     "The PLAYER PERSONA below is the human-controlled protagonist, NOT an NPC or narrator voice. Refer to the player by that identity when appropriate.",
     "Never write the player persona's dialogue, private thoughts, decisions, or actions unless they were already supplied by the player.",
