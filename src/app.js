@@ -101,6 +101,7 @@ root.innerHTML = `
               <button type="button" data-format="action">*Action*</button>
               <button type="button" data-format="speech">&quot;Speech&quot;</button>
               <button type="button" data-format="thought">(Thought)</button>
+              ${isGuest ? '<label class="reply-length-picker" for="replyLengthSelect">AI reply <select id="replyLengthSelect" aria-label="NovelAI reply length"><option value="short">Short · 80 words</option><option value="normal">Normal · 135 words</option><option value="long">Long · 250 words</option></select></label>' : ""}
             </div>
             <label class="visually-hidden" for="playerInput">Your freeform roleplay</label>
             <textarea id="playerInput" rows="2" maxlength="${MAX_INPUT}" placeholder="What do you do, say, or think?"></textarea>
@@ -394,7 +395,7 @@ async function compileGuestHistory(snapshot) {
   const ids=[...new Set([...bindings.filter(b=>b.enabled!==false).map(b=>b.id),
     snapshot.assetSetup?.personaId].filter(Boolean))];
   const assets=(await Promise.all(ids.map(id=>getLocalAsset(liveSession.userId,id)))).filter(Boolean);
-  return compileEmberContext({story:snapshot,assets,bindings});
+  return compileEmberContext({story:snapshot,assets,bindings,generationLength});
 }
 function recordContextCoverage(compiled,storyId) {
   latestContextCoverage={
@@ -438,7 +439,7 @@ async function generateLastTurn(replaceReplyId=null) {
     if (isGuest) {
       const compiled=await compileGuestHistory(generationStory);
       recordContextCoverage(compiled,generationStory.id);
-      requestBody = {prompt:compiled.prompt};
+      requestBody = {prompt:compiled.prompt,length:generationLength};
     }
     const response = await fetch(isGuest ? "/ember/api/guest/generate" : "/ember/api/generate",{
       method:"POST",credentials:"same-origin",cache:"no-store",
