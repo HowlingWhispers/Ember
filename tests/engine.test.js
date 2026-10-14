@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createStory, addPlayerTurn, addNarratorTurn, replacePlayerTurn, replaceProviderTurn, removeLatestProviderTurn, advanceTime, addJournalNote, validateStory, formatClock, wrapComposerSelection, exitComposerPair } from "../src/engine.js";
+import { createStory, addPlayerTurn, addNarratorTurn, replacePlayerTurn, replaceProviderTurn, removeProviderTurn, removeLatestProviderTurn, advanceTime, addJournalNote, validateStory, formatClock, wrapComposerSelection, exitComposerPair } from "../src/engine.js";
 import { importStory, exportStory } from "../src/storage.js";
 
 test("starts as an explicitly noncanonical concept preview", () => {
@@ -180,4 +180,45 @@ test("player message editing validates ownership and the 8,000-character input l
   const changed=replacePlayerTurn(reply,id,"  I understand.  ");
   assert.equal(changed.turns.at(-2).text,"I understand.");
   assert.equal(changed.turns.at(-2).mode,"thought");
+});
+
+
+test("older generated replies can be deleted individually without truncating later story history",()=>{
+  const first=addPlayerTurn(createStory(),"speech",'"Mi Lord"');
+  const withFirst=addNarratorTurn(first,first.turns.at(-1).id,'Rainier offers a drink.');
+  const firstReply=withFirst.turns.at(-1);
+  const second=addPlayerTurn(withFirst,"action","I mention the house.");
+  const withSecond=addNarratorTurn(second,second.turns.at(-1).id,"Rainier recalls the burned house.");
+  const secondReply=withSecond.turns.at(-1);
+  const third=addPlayerTurn(withSecond,"speech","Who was responsible?");
+  const withThird=addNarratorTurn(third,third.turns.at(-1).id,"Rainier begins investigating.");
+  const thirdReply=withThird.turns.at(-1);
+
+  const withoutFirst=removeProviderTurn(withThird,firstReply.id);
+  assert.equal(withoutFirst.turns.length,withThird.turns.length-1);
+  assert.equal(withoutFirst.revision,withThird.revision+1);
+  assert.deepEqual(withoutFirst.turns,withThird.turns.filter(t=>t.id!==firstReply.id));
+  assert.deepEqual(withThird.turns.at(-1),thirdReply,"Source story was not modified");
+  assert.deepEqual(validateStory(withoutFirst).turns,withoutFirst.turns);
+  assert.deepEqual(importStory(exportStory(withoutFirst)).turns,withoutFirst.turns,
+    "Deletion must persist through local backup and reload");
+
+  const withoutMiddle=removeProviderTurn(withThird,secondReply.id);
+  assert.ok(withoutMiddle.turns.some(t=>t.id===firstReply.id));
+  assert.ok(withoutMiddle.turns.some(t=>t.id===thirdReply.id));
+  assert.ok(!withoutMiddle.turns.some(t=>t.id===secondReply.id));
+  assert.deepEqual(withoutMiddle.turns.at(-1),thirdReply);
+
+  const withoutLatest=removeProviderTurn(withThird,thirdReply.id);
+  assert.equal(withoutLatest.turns.at(-1).source,"player");
+  assert.equal(withoutLatest.turns.at(-1).text,"Who was responsible?");
+});
+
+test("arbitrary reply deletion refuses player turns and unknown IDs",()=>{
+  const s=addPlayerTurn(createStory(),"action","Open the door.");
+  const id=s.turns.at(-1).id;
+  assert.throws(()=>removeProviderTurn(s,id),/not found/);
+  assert.throws(()=>removeProviderTurn(s,"missing"),/not found/);
+  assert.throws(()=>removeProviderTurn(s,""),/not found/);
+  assert.throws(()=>removeProviderTurn(null,"missing"),/not found/);
 });
