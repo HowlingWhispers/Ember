@@ -329,7 +329,10 @@ function storySpeakerName(snapshot=state) {
 }
 function setStory(next) {
   persistStory(next);
-  if (next.id !== state?.id) codaDiscovery = loadDiscovery(liveSession?.userId, next.id);
+  if (next.id !== state?.id) {
+    codaDiscovery = loadDiscovery(liveSession?.userId, next.id);
+    latestContextCoverage = null;
+  }
   state = next;
   loadError = "";
   render();
@@ -369,7 +372,36 @@ function renderNarrationState() {
     button.disabled = narrationBusy;
   });
   // Phones float this feedback over the story; reserve scroll room only while it shows.
+  const coverage=$("#contextCoverage");
+  if(!isGuest){
+    coverage.textContent="Context coverage: legacy Orbis bridge (history details unavailable).";
+  } else if(latestContextCoverage?.storyId===state?.id){
+    const c=latestContextCoverage;
+    coverage.textContent="AI context: "+c.included+"/"+c.available+" story turns, "
+      +c.omitted+" older omitted · Pinned memory: "+(c.pinned?"included":"none")
+      +" · approx. "+c.estimatedTokens+" input tokens";
+    coverage.classList.toggle("context-warning",c.omitted>0);
+  } else {
+    coverage.textContent="AI context: not checked yet · Open Story Memory to inspect.";
+    coverage.classList.remove("context-warning");
+  }
   $(".story-column").classList.toggle("has-feedback", narrationBusy || !$("#narrationError").hidden);
+}
+async function compileGuestHistory(snapshot) {
+  const bindings=await getStoryAssets(liveSession.userId,snapshot.id);
+  const ids=[...new Set([...bindings.filter(b=>b.enabled!==false).map(b=>b.id),
+    snapshot.assetSetup?.personaId].filter(Boolean))];
+  const assets=(await Promise.all(ids.map(id=>getLocalAsset(liveSession.userId,id)))).filter(Boolean);
+  return compileEmberContext({story:snapshot,assets,bindings});
+}
+function recordContextCoverage(compiled,storyId) {
+  latestContextCoverage={
+    storyId,included:compiled.historyTurnsIncluded,available:compiled.historyTurnsAvailable,
+    omitted:compiled.historyTurnsOmitted,pinned:compiled.storyMemoryIncluded,
+    estimatedTokens:compiled.estimatedTokens,opening:compiled.openingExcerptIncluded,
+    warnings:compiled.warnings.slice(0,12),
+  };
+  renderNarrationState();
 }
 async function generateLastTurn(replaceReplyId=null) {
   if (!liveSession || narrationBusy || !state) return;
@@ -402,11 +434,8 @@ async function generateLastTurn(replaceReplyId=null) {
     }
     let requestBody = { turns, characters: codaDiscovery.profiles.map(({name,role,established}) => ({name,role,established})).slice(0,12) };
     if (isGuest) {
-      const bindings = await getStoryAssets(liveSession.userId, state.id);
-      const ids=[...new Set([...bindings.filter(b=>b.enabled!==false).map(b=>b.id),
-        generationStory.assetSetup?.personaId].filter(Boolean))];
-      const assets=(await Promise.all(ids.map(id=>getLocalAsset(liveSession.userId,id)))).filter(Boolean);
-      const compiled = compileEmberContext({story:generationStory,assets,bindings});
+      const compiled=await compileGuestHistory(generationStory);
+      recordContextCoverage(compiled,generationStory.id);
       requestBody = {prompt:compiled.prompt};
     }
     const response = await fetch(isGuest ? "/ember/api/guest/generate" : "/ember/api/generate",{
@@ -875,6 +904,58 @@ async function copySanitizedStory() {
     toast(error instanceof Error ? error.message : "Unable to copy the story.");
   }
 }
+function openStoryMemory() {
+  $(".overflow").open=false;
+  if(!state){toast("Restore or open a readable story before editing memory.");return;}
+  $("#storyMemoryInput").value=state.storyMemory||"";
+  $("#memoryCount").textContent=$("#storyMemoryInput").value.length+" / 4,000 characters";
+  $("#contextDetails").textContent=isGuest
+    ? "Choose Check context coverage to see what NovelAI would receive. This does not use provider credits."
+    : "The legacy Orbis generation bridge does not use Ember Story Memory. Use the independent guest provider path for native memory.";
+  $("#memoryDialog").showModal();
+}
+$("#memoryButton").addEventListener("click",openStoryMemory);
+$("#memoryMenuButton").addEventListener("click",openStoryMemory);
+$("#closeMemoryButton").addEventListener("click",()=>$("#memoryDialog").close());
+$("#storyMemoryInput").addEventListener("input",()=>{
+  $("#memoryCount").textContent=$("#storyMemoryInput").value.length+" / 4,000 characters";
+});
+$("#memoryForm").addEventListener("submit",event=>{
+  event.preventDefault();
+  if(narrationBusy){$("#contextDetails").textContent="Wait until NovelAI finishes generating before editing memory.";return;}
+  if(!state){$("#contextDetails").textContent="Story unavailable.";return;}
+  try {
+    setStory(setStoryMemory(state,$("#storyMemoryInput").value));
+    $("#memoryDialog").close();
+    toast("Story Memory saved locally and included in future Ember guest generations.");
+  }catch(error){$("#contextDetails").textContent=error.message;}
+});
+$("#inspectContextButton").addEventListener("click",async()=>{
+  if(!isGuest){$("#contextDetails").textContent="Legacy Orbis generation does not expose context coverage. Use Ember guest generation.";return;}
+  if(!state){$("#contextDetails").textContent="No story loaded.";return;}
+  const snapshot=state;
+  const recent=snapshot.turns.at(-1)?.source==="provider"
+    ? {...snapshot,turns:snapshot.turns.slice(0,-1)} : snapshot;
+  if(recent.turns.at(-1)?.source!=="player"){
+    $("#contextDetails").textContent="Write a player message first. Then Ember can calculate the actual generation context without contacting NovelAI.";
+    return;
+  }
+  $("#inspectContextButton").disabled=true;
+  try{
+    const compiled=await compileGuestHistory(recent);
+    if(!state || state.id!==snapshot.id || state.revision!==snapshot.revision)
+      throw new Error("The story changed while checking context. Try again.");
+    recordContextCoverage(compiled,snapshot.id);
+    $("#contextDetails").textContent="Would send "+compiled.historyTurnsIncluded+" of "
+      +compiled.historyTurnsAvailable+" turns. Older omitted: "+compiled.historyTurnsOmitted
+      +". Earliest included turn: #"+(compiled.oldestIncludedTurnIndex+1)
+      +". Opening excerpt: "+(compiled.openingExcerptIncluded?"yes":"not needed")
+      +". Pinned continuity: "+(compiled.storyMemoryIncluded?"included":"none")
+      +". Approximate input tokens: "+compiled.estimatedTokens+". "
+      +(compiled.warnings.length?compiled.warnings.join(" "):"All eligible turns currently fit.");
+  }catch(error){$("#contextDetails").textContent=error.message;}
+  finally{$("#inspectContextButton").disabled=false;}
+});
 $("#copySanitizedButton").addEventListener("click",()=>void copySanitizedStory());
 $("#copySanitizedMenuButton").addEventListener("click",()=>void copySanitizedStory());
 $("#exportButton").addEventListener("click", () => {
