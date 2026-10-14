@@ -23,6 +23,12 @@ async function fixture(mode = 'character', envOverrides = {}) {
     if (url.endsWith('/generate')) {
       generateCalls++;
       assert.equal(body.linkId, linkId);
+      if (body.task === 'discovery') {
+        assert.match(body.appFormattingGuidance, /Coda/);
+        return new Response(JSON.stringify({text:'{"candidate":null}'}),{
+          status:200, headers:{'Content-Type':'application/json'}
+        });
+      }
       if (!authorized) return new Response(JSON.stringify({error:'Orbis session expired.'}),{status:401});
       if (envOverrides.TEST_PROVIDER_ERROR) {
         return new Response(JSON.stringify({error:'NovelAI is currently unavailable.',code:'NOVELAI_ERROR'}),{status:502});
@@ -279,5 +285,25 @@ test('a failed NovelAI response keeps errors sanitized and allows a retry',async
   const response=await requestNarration(app,cookie);
   assert.equal(response.status,502);
   assert.match((await response.json()).error,/NovelAI/);
+  assert.equal(app.generateCalls(),1);
+});
+
+test('Coda discovery requires sufficient story context and uses the authenticated bridge', async t => {
+  const app=await fixture('sandbox');t.after(()=>app.close());
+  const cookie=(await app.postLaunch()).headers.get('set-cookie').split(';')[0];
+  const call = turns => fetch(app.base+'/ember/api/generate',{
+    method:'POST',headers:{Cookie:cookie,Origin:'https://thehowlingwhispers.com',
+      'Content-Type':'application/json','X-Ember-Request':'generation'},
+    body:JSON.stringify({task:'discovery',turns}),
+  });
+  assert.equal((await call(transcript)).status,400);
+  const turns=[];
+  for(let i=0;i<4;i++){
+    turns.push({source:'player',mode:'action',text:'Hello'});
+    turns.push({source:'provider',mode:'narrator',text:'A character replies.'});
+  }
+  const response=await call(turns);
+  assert.equal(response.status,200);
+  assert.deepEqual(await response.json(),{text:'{"candidate":null}'});
   assert.equal(app.generateCalls(),1);
 });
