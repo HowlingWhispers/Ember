@@ -106,3 +106,25 @@ and redirects to `/ember/`.
 ## Provider-generation rollout
 
 After updating Orbis and Ember code, restart `orbis.service` and `ember.service` (after their usual build and test steps). Orbis must already have `ORBIS_CREDENTIAL_ENCRYPTION_KEY` and the user's own NovelAI key in Account settings. No new secret is needed beyond the existing Ember bridge secret. Keep nginx `/ember/` proxy read timeout at least 120 seconds; the upstream provider request times out at 90 seconds. The response is non-streaming in this first milestone. No story text or NovelAI key is logged by the new generation path. If the player has a previously saved unanswered turn from the local-only version, the composer shows **Generate reply** so they can continue without rewriting it.
+
+## Optional temporary Ember guest accounts (before HW Portal)
+
+This feature is intentionally **opt-in** and was added after the Orbis-only launch flow described above. It offers a real Ember-native account area at `/ember/account` with provider settings, not a replacement account service for the whole Howling Whispers ecosystem.
+
+1. Make a **persistent** private directory outside the checkout, e.g. `/var/lib/hw-ember/guest`. Set ownership to the `ember.service` user and mode **0700**. The server refuses to use a more permissive guest vault directory.
+2. Generate a **new** 32-byte random hex master key, e.g. `openssl rand -hex 32`, stored only in the existing root-protected service environment. Back up and retain this key: losing it makes stored guest NovelAI credentials undecryptable. Do not paste it into GitHub or any chat.
+3. Configure `EMBER_GUEST_ENABLED=1`, `EMBER_GUEST_DATA_DIR`, `EMBER_GUEST_ENCRYPTION_KEY`, and `EMBER_WEB_ORIGIN=https://thehowlingwhispers.com`. Do not put guest secrets in the static document root or browser JavaScript.
+4. Re-run `npm run check && npm test` and restart the Ember service through the established operator process. Do **not** restart or modify Orbis; guest mode generates directly through NovelAI.
+5. Verify a first-time `GET /ember/` sets an `HttpOnly; SameSite=Lax; Secure` `ember.guest` cookie, returns the app shell and loads an Ember guest session. Visit `/ember/account` and verify both the guest profile and provider settings are visible. `GET /ember/api/guest/provider` must never reveal an API key.
+6. Save a **test** NovelAI key via the account page and verify one authorized real generation, including a locally imported V2 character with a relevant lorebook entry. Unit tests use a mock provider and do not establish live NovelAI success. Avoid logging provider secrets, user roleplay, cookies or session IDs.
+7. Test that a legacy Orbis package launch still reaches `/ember/scene`, uses `ember.sid`, and preserves its original browser storage scope. With guest mode enabled, the ordinary `/ember/` entrance uses `ember.guest`; old Orbis-based sandbox entry is available through the Orbis launch and redirects to `/ember/scene`.
+8. Confirm static URLs are protected, cross-site settings writes fail, an unauthorized guest cannot access a legacy Orbis scene, and restarting Ember does not discard guest identity or encrypted credentials.
+
+### Guest-account limitations and rollback
+
+- Guest accounts are identified by a browser cookie, not a username or password. This is **not** suitable for multi-user access in one shared browser profile. Clearing cookies can orphan the encrypted provider key and scope local data under a former guest ID; there is **no recovery flow yet**. Inform users before rollout and recommend local story/library backups.
+- Existing Orbis-scoped IndexedDB V2 cards, lorebooks, attachments and browser stories are **not copied automatically** into a new guest ID. Originals remain intact. Users may re-import exported copies; an audited consent-based migration tool remains separate work. Do not claim old content is migrated.
+- The account page stores only a guest identity and server-side NovelAI settings; story/card/lore sources remain in the browser.
+- The guest routes and legacy routes use **different cookies** and are independent. The account service handles *only Ember*, until the future Landing portal can provide shared identities.
+- Roll back by setting `EMBER_GUEST_ENABLED=0` and restarting Ember. **Keep the guest vault directory and encryption key** so previously created guest profiles and credentials can be recovered when the feature is re-enabled. The old Orbis bridge remains available. On rollback, direct `/ember/` returns to legacy Orbis handoff.
+- Rate limits are enforced per profile in-process for NovelAI generation (one in flight and at least 10 seconds apart). Production proxy-level abuse protection is still required.
