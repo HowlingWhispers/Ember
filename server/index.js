@@ -26,6 +26,7 @@ const ALLOWED_FILES = new Map([
   ['/ember/src/engine.js', ['src/engine.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/storage.js', ['src/storage.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/coda-sound.js', ['src/coda-sound.js', 'text/javascript; charset=utf-8']],
+  ['/ember/src/coda-discovery.js', ['src/coda-discovery.js', 'text/javascript; charset=utf-8']],
   ['/ember/assets/sounds/hey-listen.mp3', ['assets/sounds/hey-listen.mp3', 'audio/mpeg']],
   ['/ember/src/styles.css', ['src/styles.css', 'text/css; charset=utf-8']],
 ]);
