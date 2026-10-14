@@ -117,3 +117,13 @@ test("reroll preserves original reply until generation succeeds and requires lat
   assert.match(app,/removeLatestProviderTurn\(state,turn\.id\)/);
   assert.match(app,/state\.turns\.at\(-2\)\?\.source!=="player"/);
 });
+
+
+test("Account & NovelAI header link uses readable Ember colors in every link state",()=>{
+  assert.match(app,/id="accountButton" href="\/ember\/account"/);
+  assert.match(css,/\.top-actions #accountButton:link,\s*\.top-actions #accountButton:visited\s*\{[^}]*color:\s*var\(--text\)/);
+  assert.match(css,/\.top-actions #accountButton:link,\s*\.top-actions #accountButton:visited\s*\{[^}]*text-decoration:\s*none/);
+  assert.match(css,/\.top-actions #accountButton:hover\s*\{[^}]*color:\s*var\(--gold\)/);
+  assert.match(css,/\.top-actions #accountButton:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--gold\)/);
+  assert.match(css,/:root\[data-theme="daylight"\]\s*\{/);
+});
