@@ -157,6 +157,23 @@ h1, h2, h3 { font-family: Georgia, "Times New Roman", serif; }
 .composer textarea::placeholder { color: var(--faint); }
 .composer-footer { padding: 2px 3px 3px; }
 .composer-hint { font-size: 11px; color: var(--muted); }
+
+/* The context indicator exposes what was actually compiled, without logging a prompt. */
+.context-coverage { margin: 4px 3px 0; color: var(--muted); font-size: 11px;
+  line-height: 1.4; overflow-wrap: anywhere; }
+.context-coverage.context-warning { color: var(--gold); }
+#memoryDialog { width: min(760px, 96vw); max-width: 96vw; max-height: 88dvh;
+  overflow-y: auto; background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 13px; padding: 0; }
+#memoryDialog::backdrop { background: rgba(0,0,0,.7); }
+#memoryDialog .sheet { padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+#storyMemoryInput { width: 100%; min-height: 130px; resize: vertical; padding: 12px;
+  border: 1px solid var(--border); border-radius: 9px; background: var(--paper);
+  color: var(--text); font: 15px/1.6 system-ui, sans-serif; }
+#storyMemoryInput:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+#contextDetails { white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width:600px) { #memoryDialog .sheet { padding: 16px; } }
+
 /* Reserve one small feedback row so starting/ending generation never moves the composer. */
 .narration-feedback { height: 40px; flex: 0 0 40px; min-width: 0; overflow: hidden; display: flex; align-items: center; }
 .narration-status { color: var(--gold); font-size: 12px; width: 100%; }
