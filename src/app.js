@@ -451,7 +451,7 @@ $("#playerInput").addEventListener("input", () => {
   renderNarrationState();
 });
 // Toolbar selection is preserved on desktop and touch devices.
-$("#modeSwitch").addEventListener("mousedown", event => {
+$("#modeSwitch").addEventListener("pointerdown", event => {
   if (event.target.closest("[data-format]")) event.preventDefault();
 });
 $("#modeSwitch").addEventListener("click", event => {
