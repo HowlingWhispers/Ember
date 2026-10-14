@@ -4,6 +4,7 @@ import {
   readSoundPreferences, storeSoundPreferences, saveCustomRingtone,
   deleteCustomRingtone, playCodaSound,
 } from "./coda-sound.js";
+import { parseCodaCandidate, loadDiscovery, saveDiscovery, shouldDiscover } from "./coda-discovery.js";
 
 const root = document.querySelector("#app");
 const liveSession = globalThis.__EMBER_SESSION__ ?? null;
@@ -26,6 +27,8 @@ let soundSettings = readSoundPreferences(soundUserId);
 let soundBusy = false;
 let narrationBusy = false;
 let narrationError = "";
+let codaDiscovery = loadDiscovery(liveSession?.userId, state?.id ?? "unavailable");
+let codaDiscoveryBusy = false;
 const tabs = ["here", "places", "people", "journal", "almanac"];
 const safe = value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 
@@ -124,8 +127,22 @@ root.innerHTML = `
     <div id="codaBubble" class="coda-bubble" hidden>
       <div class="coda-bubble-header"><strong>Coda</strong><button type="button" class="quiet" id="codaDismiss" aria-label="Dismiss Coda message">✕</button></div>
       <strong class="coda-greeting">Hey! Listen! 🐾</strong>
-      <p>Found a character worth keeping? Once Coda's discovery engine is connected, I can suggest a private Orbis draft here.</p>
-      <p class="coda-disclaimer">Companion preview only. Coda isn't monitoring your roleplay yet.</p>
+      <p id="codaIntro">I'll quietly watch for emerging characters as your story develops. Nothing is saved to Orbis.</p>
+      <div id="codaSuggestion" hidden>
+        <label for="codaDraftName">Proposed character name</label>
+        <input id="codaDraftName" maxlength="120">
+        <label for="codaDraftRole">Role or relationship</label>
+        <input id="codaDraftRole" maxlength="200">
+        <label for="codaDraftFacts">Established details</label>
+        <textarea id="codaDraftFacts" rows="2" maxlength="200"></textarea>
+        <label for="codaDraftIdeas">Coda's optional suggestions</label>
+        <textarea id="codaDraftIdeas" rows="2" maxlength="200"></textarea>
+        <div class="coda-draft-actions">
+          <button type="button" id="codaKeep" class="chip-button">Keep locally</button>
+          <button type="button" id="codaSkip" class="chip-button">Not now</button>
+        </div>
+      </div>
+      <p class="coda-disclaimer" id="codaDisclaimer">Character drafts stay on this device until you approve them.</p>
       <button type="button" class="chip-button" id="codaSoundSettings">Notification sound settings</button>
     </div>
     <button type="button" id="codaButton" class="coda-orb" aria-label="Open Coda companion preview" aria-expanded="false" aria-controls="codaBubble" title="Coda: Hey! Listen!"><span aria-hidden="true">🐾</span><span class="coda-orb-label">Coda</span></button>
@@ -238,6 +255,7 @@ function updateTheme() {
 }
 function setStory(next) {
   persistStory(next);
+  if (next.id !== state?.id) codaDiscovery = loadDiscovery(liveSession?.userId, next.id);
   state = next;
   loadError = "";
   render();
@@ -308,7 +326,9 @@ async function generateLastTurn() {
     if (!state || state.id !== expectedStoryId || state.revision !== expectedRevision) {
       throw new Error("Story changed during generation. Reply was not attached.");
     }
-    setStory(addNarratorTurn(state, last.id, result.text));
+    const completed = addNarratorTurn(state, last.id, result.text);
+    setStory(completed);
+    void discoverAfterNarration(completed);
     $("#storyScroll").scrollTop = $("#storyScroll").scrollHeight;
   } catch (err) {
     narrationError = err instanceof Error ? err.message : "NovelAI failed. Retry the last turn.";
@@ -351,6 +371,7 @@ function render() {
     $("#storyTurns").append(el);
   }
   renderRail();
+  renderCodaDiscovery();
   renderNarrationState();
 }
 function railMarkup() {
@@ -373,9 +394,9 @@ function railMarkup() {
   `;
   if (activeTab === "people") return `
     <div class="panel-kicker">PEOPLE</div><h2>Faces in the world</h2>
-    <p class="muted">Character presence, relationships and player knowledge will come from validated story state.</p>
-    ${liveSession ? '' : '<div class="person-entry"><span class="avatar">RH</span><div><strong>Ragna Holt</strong><small>Design reference · presence unknown</small></div></div>'}
-    <div class="empty-panel small"><p>No live cast or relationship data yet.</p></div>
+    <p class="muted">Your approved characters, stored privately in this browser.</p>
+    ${codaDiscovery.profiles.map(person => `<div class="person-entry"><span class="avatar">✧</span><div><strong>${safe(person.name)}</strong><small>${safe(person.role || "Story character")}</small><p>${safe(person.established)}</p>${person.suggestions ? `<small>Ideas: ${safe(person.suggestions)}</small>` : ""}</div></div>`).join("")}
+    ${codaDiscovery.profiles.length ? "" : '<div class="empty-panel small"><p>No approved local characters yet. Coda may suggest one as your story develops.</p></div>'}
   `;
   if (activeTab === "journal") return `
     <div class="panel-kicker">YOUR NOTES &amp; EVENTS</div><h2>Journal</h2>
@@ -397,6 +418,73 @@ function renderRail() {
     btn.setAttribute("aria-current", selected ? "page" : "false");
   });
 }
+
+function renderCodaDiscovery() {
+  const pending = codaDiscovery.pending;
+  $("#codaSuggestion").hidden = !pending;
+  $("#codaIntro").textContent = pending
+    ? "I noticed someone taking shape in your story. Want to keep a private character profile? 🐾"
+    : "I'll quietly watch for emerging characters as your story develops. Nothing is saved to Orbis.";
+  $("#codaButton").classList.toggle("has-discovery", Boolean(pending));
+  $("#codaButton").setAttribute("title", pending ? "Coda has a character suggestion" : "Open Coda");
+  if (pending) {
+    $("#codaDraftName").value = pending.name;
+    $("#codaDraftRole").value = pending.role;
+    $("#codaDraftFacts").value = pending.established;
+    $("#codaDraftIdeas").value = pending.suggestions;
+  }
+}
+
+async function discoverAfterNarration(snapshot) {
+  if (liveSession?.mode !== "sandbox" || codaDiscoveryBusy || !shouldDiscover(snapshot.turns, codaDiscovery)) return;
+  const storyId = snapshot.id;
+  const players = snapshot.turns.filter(turn => turn.source === "player").length;
+  codaDiscovery.lastChecked = players;
+  try { saveDiscovery(liveSession.userId, storyId, codaDiscovery); }
+  catch { return; }
+  codaDiscoveryBusy = true;
+  try {
+    const turns = snapshot.turns.filter(turn => turn.source === "player" || turn.source === "provider")
+      .slice(-24).map(turn => ({mode:turn.mode, source:turn.source, text:turn.text}));
+    const response = await fetch("/ember/api/generate", {
+      method:"POST", credentials:"same-origin", cache:"no-store",
+      headers:{"Content-Type":"application/json","X-Ember-Request":"generation"},
+      body:JSON.stringify({task:"discovery",turns}),
+    });
+    if (!response.ok) return;
+    const result = await response.json();
+    const candidate = parseCodaCandidate(result.text);
+    if (!candidate || state?.id !== storyId || codaDiscovery.pending) return;
+    if (codaDiscovery.profiles.some(person => person.name.toLocaleLowerCase() === candidate.name.toLocaleLowerCase())) return;
+    codaDiscovery.pending = candidate;
+    saveDiscovery(liveSession.userId, storyId, codaDiscovery);
+    renderCodaDiscovery();
+  } catch { /* Suggestions are optional; never interrupt the story. */ }
+  finally { codaDiscoveryBusy = false; }
+}
+
+$("#codaKeep").addEventListener("click", () => {
+  if (!state || !codaDiscovery.pending) return;
+  const draft = parseCodaCandidate(JSON.stringify({candidate:{
+    name:$("#codaDraftName").value,role:$("#codaDraftRole").value,
+    established:$("#codaDraftFacts").value,suggestions:$("#codaDraftIdeas").value,
+  }}));
+  if (!draft) return toast("Enter a name and an established detail or role.");
+  if (!codaDiscovery.profiles.some(person => person.name.toLocaleLowerCase() === draft.name.toLocaleLowerCase()))
+    codaDiscovery.profiles.push(draft);
+  codaDiscovery.pending = null;
+  try { saveDiscovery(liveSession?.userId,state.id,codaDiscovery); }
+  catch { return toast("Unable to save this character in the browser."); }
+  renderCodaDiscovery(); renderRail(); setCodaOpen(false);
+  toast("Character saved privately in this story's People tab.");
+});
+$("#codaSkip").addEventListener("click", () => {
+  if (!state) return;
+  codaDiscovery.pending = null;
+  try { saveDiscovery(liveSession?.userId,state.id,codaDiscovery); }
+  catch { return toast("Unable to update Coda's suggestion."); }
+  renderCodaDiscovery(); setCodaOpen(false);
+});
 
 $("#sendButton").addEventListener("click", () => {
   if (!state || narrationBusy) return;
