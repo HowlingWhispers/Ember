@@ -7,8 +7,34 @@ export const EMBER_CONTEXT_LIMIT = 22000;
 const own = (v,k) => Object.prototype.hasOwnProperty.call(v,k);
 const string = v => typeof v === "string" ? v : "";
 const bounded = (value,limit) => string(value).slice(0,limit);
-const reference = (name,contents) => "[" + name + ": FICTION REFERENCE DATA]\n"
-  + JSON.stringify(contents) + "\n[END " + name + "]";
+// Render untrusted fiction as indented prose, never as top-level role markers.
+const indentFiction = (value,depth=2) => string(value).replace(/\r\n?/g,"\n")
+  .split("\n").map(line=>" ".repeat(depth)+line).join("\n");
+const fieldName = key => ({
+  name:"Name",description:"Description",personality:"Personality",
+  scenario:"Scenario",scenarioContext:"Scenario context",
+  firstMessage:"Selected scene opening",exampleDialogue:"Example dialogue",
+  creatorNotes:"Creator notes",title:"Title",content:"Lore",
+})[key] || null;
+function reference(name,contents) {
+  const lines=["["+name+": FICTION REFERENCE DATA]"];
+  if(typeof contents==="string") {
+    lines.push(indentFiction(contents));
+  } else if(Array.isArray(contents)) {
+    for(const [index,entry] of contents.entries()){
+      lines.push("  Lore entry "+(index+1)+":");
+      if(entry?.title)lines.push("    Title:\n"+indentFiction(entry.title,6));
+      if(entry?.content)lines.push("    Lore:\n"+indentFiction(entry.content,6));
+    }
+  } else if(contents && typeof contents==="object") {
+    for(const [key,value] of Object.entries(contents)){
+      const label=fieldName(key);
+      if(label && typeof value==="string" && value.trim())
+        lines.push("  "+label+":\n"+indentFiction(value,4));
+    }
+  }
+  return lines.join("\n")+"\n[END "+name+"]";
+}
 const safeTurn = turn => turn && typeof turn === "object"
   && ["player","provider","preview"].includes(turn.source)
   && ["action","speech","thought","narrator"].includes(turn.mode)
@@ -63,18 +89,27 @@ function greeting(character,link,story) {
 }
 // A long card or lorebook must not consume nearly all conversational memory.
 // The hard 22K character cap is enforced by Ember's guest generation endpoint.
+function formattedTurn(turn) {
+  const role=turn.source==="player"?"PLAYER":turn.source==="preview"?"OPENING":"NARRATOR";
+  let text=turn.text.replace(/\r\n?/g,"\n").trim();
+  // Respect the player's original markup when it already supplies roleplay
+  // quotes or actions. Add notation only for otherwise unmarked entire turns.
+  if(turn.source==="player" && turn.mode==="action" && !text.includes("*"))
+    text="*"+text+"*";
+  if(turn.source==="player" && turn.mode==="speech" && !/["“”]/u.test(text))
+    text='"'+text+'"';
+  if(turn.source==="player" && turn.mode==="thought" && !text.startsWith("("))
+    text="("+text+")";
+  return role+":\n"+indentFiction(text);
+}
 function recentEntries(turns,budget) {
   const result=[];
   let remaining=budget;
   for(let index=turns.length-1; index>=0;index--){
-    const turn=turns[index];
-    const content=JSON.stringify({
-      speaker:turn.source==="player"?"PLAYER":turn.source==="preview"?"OPENING":"NARRATOR",
-      mode:turn.mode,text:turn.text,
-    });
-    if(content.length+1>remaining)break;
+    const content=formattedTurn(turns[index]);
+    if(content.length+2>remaining)break;
     result.unshift({index,content});
-    remaining-=content.length+1;
+    remaining-=content.length+2;
   }
   return result;
 }
