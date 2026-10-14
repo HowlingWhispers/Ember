@@ -221,6 +221,14 @@ dialog::backdrop { background: rgba(0,0,0,.67); }
 .coda-orb:hover { border-color: #79cdeb; }
 .coda-bubble { position: absolute; right: 6px; bottom: calc(100% + 10px); width: min(320px, calc(100vw - 45px)); max-height: min(340px, 58dvh); overflow-y: auto; padding: 17px; background: var(--paper); border: 1px solid #79cdeb; box-shadow: 0 15px 35px var(--shadow); border-radius: 12px; font-size: 13px; line-height: 1.6; }
 .coda-bubble[hidden] { display: none; }
+.coda-orb.has-discovery::after { content: ""; position: absolute; top: 5px; left: 7px; width: 8px; height: 8px; background: var(--gold); border: 1px solid var(--paper); border-radius: 50%; }
+#codaSuggestion { display: grid; gap: 6px; margin: 10px 0; }
+#codaSuggestion[hidden] { display: none; }
+#codaSuggestion label { color: var(--muted); font-size: 11px; }
+#codaSuggestion input, #codaSuggestion textarea { width: 100%; min-width: 0; box-sizing: border-box; font: inherit; padding: 7px 8px; background: var(--paper-warm); color: var(--text); border: 1px solid var(--border); border-radius: 6px; resize: vertical; }
+.coda-draft-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.coda-draft-actions button { flex: 1; min-width: 95px; }
+
 .coda-bubble-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .coda-greeting { color: #79cdeb; }
 .coda-disclaimer { color: var(--muted); font-size: 11px; }
