@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createStory, addPlayerTurn, addNarratorTurn, advanceTime, addJournalNote, validateStory, formatClock } from "../src/engine.js";
+import { createStory, addPlayerTurn, addNarratorTurn, advanceTime, addJournalNote, validateStory, formatClock, wrapComposerSelection, exitComposerPair } from "../src/engine.js";
 import { importStory, exportStory } from "../src/storage.js";
 
 test("starts as an explicitly noncanonical concept preview", () => {
@@ -101,4 +101,20 @@ test("text size, layout density and theme are stored under separate keys", async
   setPreference("unknown", "x");
   assert.equal(getPreference("unknown", "fallback"), "fallback");
   assert.equal(map.size, 3);
+});
+
+test("Ember macros insert or wrap freeform text at the caret", () => {
+  assert.deepEqual(wrapComposerSelection("Hello", 0, 5, "speech"), {text:'"Hello"',start:1,end:6});
+  assert.deepEqual(wrapComposerSelection("", 0, 0, "action"), {text:"**",start:1,end:1});
+  assert.deepEqual(wrapComposerSelection("I wonder", 0, 8, "thought"), {text:"(I wonder)",start:1,end:9});
+  assert.equal(wrapComposerSelection("Hi",0,2,"other"),null);
+});
+test("Enter exits enclosing pairs anywhere without modifying authored text", () => {
+  assert.deepEqual(exitComposerPair('"Hello"',3),{text:'"Hello" ',caret:8});
+  assert.deepEqual(exitComposerPair("*I wave*",3),{text:"*I wave* ",caret:9});
+  assert.deepEqual(exitComposerPair("(I think)",4),{text:"(I think) ",caret:10});
+  assert.deepEqual(exitComposerPair('"Hello" next',3),{text:'"Hello" next',caret:8});
+  assert.deepEqual(exitComposerPair('Say "(Hi)"',6),{text:'Say "(Hi) "',caret:10});
+  assert.equal(exitComposerPair('Plain message',4),null);
+  assert.equal(exitComposerPair('"Unclosed',4),null);
 });
