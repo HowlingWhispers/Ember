@@ -2,6 +2,7 @@ import { importEmberAsset, IMPORT_LIMITS } from "./asset-import.js";
 import { listLocalAssets, importLocalAsset, renameLocalAsset, deleteLocalAsset,
   downloadLocalAsset, getStoryAssets, setStoryAssets } from "./asset-store.js";
 import { activateLorebooks } from "./lore-engine.js";
+import { exportLocalLibrary, parseLocalLibraryBackup } from "./asset-backup.js";
 
 const escapeHtml = value => String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;")
   .replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;");
@@ -10,7 +11,7 @@ export function mountAssetLibrary({root,owner,getStory,onStartCharacter}) {
   const shell = document.createElement("dialog");
   shell.className = "asset-library";
   shell.setAttribute("aria-labelledby","assetLibraryTitle");
-  shell.innerHTML = '<div class="asset-frame"><header class="asset-header"><div><p class="asset-eyebrow">EMBER · LOCAL STORAGE</p><h2 id="assetLibraryTitle">My Library</h2><p>Character cards and lorebooks stored in this browser, never uploaded to Orbis.</p></div><button type="button" data-action="close" aria-label="Close library">✕</button></header><div class="asset-tools"><div class="asset-tabs" role="group" aria-label="Asset type"><button type="button" data-tab="character">Characters</button><button type="button" data-tab="lorebook">Lorebooks</button></div><label class="asset-search"><span class="visually-hidden">Search local assets</span><input id="assetSearch" type="search" placeholder="Search this library"></label><button class="asset-primary" type="button" data-action="import">＋ Import file</button><input id="assetImportFile" type="file" accept=".json,.png,application/json,image/png" hidden></div><p class="asset-notice" id="assetLibraryStatus" role="status" aria-live="polite"></p><div class="asset-body"><div class="asset-list" id="assetItems"></div><section id="assetDetail" class="asset-detail" aria-label="Selected asset"></section></div><footer class="asset-footer">Your assets stay in this browser profile. Export backups before clearing browser data. Importing does not automatically change a story.</footer></div>';
+  shell.innerHTML = '<div class="asset-frame"><header class="asset-header"><div><p class="asset-eyebrow">EMBER · LOCAL STORAGE</p><h2 id="assetLibraryTitle">My Library</h2><p>Character cards and lorebooks stored in this browser, never uploaded to Orbis.</p></div><button type="button" data-action="close" aria-label="Close library">✕</button></header><div class="asset-tools"><div class="asset-tabs" role="group" aria-label="Asset type"><button type="button" data-tab="character">Characters</button><button type="button" data-tab="lorebook">Lorebooks</button></div><label class="asset-search"><span class="visually-hidden">Search local assets</span><input id="assetSearch" type="search" placeholder="Search this library"></label><button class="asset-primary" type="button" data-action="import">＋ Import file</button><input id="assetImportFile" type="file" accept=".json,.png,application/json,image/png" hidden><button type="button" data-action="backup">Backup library</button><button type="button" data-action="restore">Restore backup</button><input id="assetBackupFile" type="file" accept=".json,application/json" hidden></div><p class="asset-notice" id="assetLibraryStatus" role="status" aria-live="polite"></p><div class="asset-body"><div class="asset-list" id="assetItems"></div><section id="assetDetail" class="asset-detail" aria-label="Selected asset"></section></div><footer class="asset-footer">Your assets stay in this browser profile. Export backups before clearing browser data. Importing does not automatically change a story.</footer></div>';
   root.append(shell);
   const $ = sel => shell.querySelector(sel);
   let assets = [], attached = [], type = "character", selectedId = null, search = "";
@@ -92,6 +93,18 @@ export function mountAssetLibrary({root,owner,getStory,onStartCharacter}) {
     if(!action)return;
     if(action==="close"){shell.close();return;}
     if(action==="import"){$("#assetImportFile").click();return;}
+    if(action==="restore"){$("#assetBackupFile").click();return;}
+    if(action==="backup"){
+      try {
+        const data=exportLocalLibrary(assets);
+        const blob=new Blob([data],{type:"application/json"});
+        const url=URL.createObjectURL(blob);
+        const link=document.createElement("a");link.href=url;link.download="ember-library-backup.json";link.click();
+        setTimeout(()=>URL.revokeObjectURL(url),1000);
+        status("Library backup exported. Store this file somewhere safe.");
+      }catch(error){status(error.message);}
+      return;
+    }
     const asset=current();
     if(!asset)return;
     try {
@@ -119,7 +132,15 @@ export function mountAssetLibrary({root,owner,getStory,onStartCharacter}) {
   shell.addEventListener("change",async event=>{
     const target=event.target, asset=current();
     try{
-      if(target.id==="assetImportFile"){
+      if(target.id==="assetBackupFile"){
+        const file=target.files?.[0];target.value="";if(!file)return;
+        if(file.size>48_000_000)throw new Error("Backup exceeds the size limit.");
+        const parsed=parseLocalLibraryBackup(await file.text());
+        if(!window.confirm("Restore "+parsed.length+" assets into this local library? Existing assets will not be overwritten."))return;
+        let added=0;
+        for(const entry of parsed){ const result=await importLocalAsset(owner(),entry);if(!result.duplicate)added++; }
+        await refresh("Restored "+added+" new assets. "+(parsed.length-added)+" duplicates were skipped.");
+      }else if(target.id==="assetImportFile"){
         const file=target.files?.[0];target.value="";await importFile(file);
       } else if(asset && target.id==="assetAttach") await toggleAttachment(asset,target.checked);
       else if(asset && target.id==="assetGreeting"){
