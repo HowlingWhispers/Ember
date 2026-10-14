@@ -6,7 +6,7 @@ import { activateLorebooks } from "./lore-engine.js";
 const escapeHtml = value => String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;")
   .replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;");
 const short = (value,n=180) => escapeHtml(String(value || "").slice(0,n));
-export function mountAssetLibrary({root,owner,getStory,notify}) {
+export function mountAssetLibrary({root,owner,getStory,onStartCharacter}) {
   const shell = document.createElement("dialog");
   shell.className = "asset-library";
   shell.setAttribute("aria-labelledby","assetLibraryTitle");
@@ -56,7 +56,7 @@ export function mountAssetLibrary({root,owner,getStory,notify}) {
         +'<h4>Scenario</h4><p class="asset-prose">'+escapeHtml(c.scenario||"No explicit scenario field. The greetings may establish a scene.")+'</p>'
         +'<h4>Example dialogue</h4><p class="asset-prose">'+escapeHtml(c.exampleMessages||"Not specified")+'</p>'
         +'<p class="asset-muted">Author: '+short(c.creator,100)+' · '+openings.length+' openings · '+(c.characterBook?.entries.length||0)+' embedded lore entries</p>'
-        +'</div>'+tools;
+        +'</div><button type="button" class="asset-primary" data-action="start">Start new scene with this character</button>'+tools;
     } else {
       const l=asset.fields;
       $("#assetDetail").innerHTML = header + attach
@@ -95,6 +95,11 @@ export function mountAssetLibrary({root,owner,getStory,notify}) {
     const asset=current();
     if(!asset)return;
     try {
+      if(action==="start" && asset.kind==="character"){
+        const index=Number($("#assetGreeting").value)||0;
+        const launched=await onStartCharacter(asset,index);
+        if(launched){ await setStoryAssets(owner(),getStory().id,[{id:asset.id,enabled:true,greeting:index}]);shell.close(); }
+      }
       if(action==="export"){downloadLocalAsset(asset);status("Original file exported.");}
       if(action==="rename"){
         const proposed=window.prompt("Library display name (original file is unchanged):",asset.title);
