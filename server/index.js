@@ -8,6 +8,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createGuestAccess } from './guest-account.js';
 
 const APP_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BASE = '/ember';
@@ -22,6 +23,8 @@ const ALLOWED_FILES = new Map([
   // Package sessions use a separate address so direct /ember/ always means sandbox.
   ['/ember/scene', ['index.html', 'text/html; charset=utf-8']],
   ['/ember/src/bootstrap.js', ['src/bootstrap.js', 'text/javascript; charset=utf-8']],
+  ['/ember/src/account.js', ['src/account.js', 'text/javascript; charset=utf-8']],
+  ['/ember/src/account.css', ['src/account.css', 'text/css; charset=utf-8']],
   ['/ember/src/app.js', ['src/app.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/engine.js', ['src/engine.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/storage.js', ['src/storage.js', 'text/javascript; charset=utf-8']],
@@ -158,6 +161,7 @@ export function createEmberServer({
   const webOrigin = new URL(env.EMBER_WEB_ORIGIN || 'https://thehowlingwhispers.com').origin;
   const sessions = new Map();
   const generating = new Set();
+  const guestAccess = createGuestAccess({env,fetchFn,rootDir,secureCookie,webOrigin});
 
   async function orbis(path, value) {
     const controller = new AbortController();
@@ -255,21 +259,25 @@ export function createEmberServer({
         sessions.set(sha(sid), { linkId: context.linkId, userId: context.userId, assetId: context.asset?.id ?? null, mode: context.mode, expiresAt: Date.now() + SESSION_TTL });
         console.info(`[ember-launch] stage=accepted mode=${context.mode}`);
         response.writeHead(303, {
-          Location: context.mode === 'sandbox' ? '/ember/' : '/ember/scene',
+          Location: guestAccess ? '/ember/scene' : (context.mode === 'sandbox' ? '/ember/' : '/ember/scene'),
           'Set-Cookie': `${COOKIE}=${sid}; Path=/ember/; HttpOnly; SameSite=Lax${secureCookie ? '; Secure' : ''}; Max-Age=${SESSION_TTL / 1000}`,
         });
         return response.end();
       }
 
       if (path === '/ember/api/health' && method === 'GET') return respond(response, 200, { ok: true, service: 'ember' });
+      // Guest accounts use a separate cookie and provider route; legacy Orbis sessions remain intact.
+      if (guestAccess && await guestAccess.handle(request,response,method,path)) return;
       // Authentication is mandatory for all app assets and APIs. Never serve
       // the browser shell merely because a cookie *exists*.
       const context = await authenticate(request);
+      const guestIdentity = guestAccess ? await guestAccess.identity(request) : null;
       if (method === 'GET' && path === '/ember/' && context?.mode !== 'sandbox') {
         response.writeHead(302, { Location: orbisConnectUrl });
         return response.end();
       }
-      if (!context) {
+      if (!context && (!guestIdentity || path === '/ember/scene'
+        || path.startsWith('/ember/api/'))) {
         if (method === 'GET' && path === '/ember/') {
           // Ember is an application, not an asset-only launcher. Send browsers
           // through the existing Orbis host-only Discord session for a blank
@@ -343,8 +351,8 @@ export function createEmberServer({
       return respond(response, 404, { error: 'Not found.' });
     } catch (error) {
       if (path === '/ember/launch' && method === 'POST') console.error(`[ember-launch] stage=bridge status=${error?.status ?? 503}`);
-      // Fail closed on an unavailable Orbis bridge; never serve cached private assets.
-      return respond(response, error?.status ?? 503, { error: 'Orbis authorization is temporarily unavailable.' });
+      // Neither legacy Orbis authorization nor guest storage failures may expose private content.
+      return respond(response, error?.status ?? 503, { error: 'Ember authorization is temporarily unavailable.' });
     }
   });
   return server;
