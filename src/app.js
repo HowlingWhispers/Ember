@@ -1,4 +1,4 @@
-import { createStory, createStoryFromLaunch, addPlayerTurn, addNarratorTurn, addJournalNote, advanceTime, formatClock, MAX_INPUT, cleanNarration, setStoryMemory, setStoryPersona, replacePlayerTurn, replaceProviderTurn, removeLatestProviderTurn, wrapComposerSelection, exitComposerPair } from "./engine.js";
+import { createStory, createStoryFromLaunch, addPlayerTurn, addNarratorTurn, addJournalNote, advanceTime, formatClock, MAX_INPUT, cleanNarration, setStoryMemory, setStoryPersona, replacePlayerTurn, replaceProviderTurn, removeProviderTurn, wrapComposerSelection, exitComposerPair } from "./engine.js";
 import { configureStoryScope, loadStory, persistStory, getPreference, setPreference, importStory, exportStory } from "./storage.js";
 import {
   readSoundPreferences, storeSoundPreferences, saveCustomRingtone,
@@ -533,9 +533,10 @@ function render() {
       tools.setAttribute("aria-label",isProvider ? "Generated reply controls" : "Your message controls");
       for (const [action,glyph,title] of [
         ["copy","📋","Copy reply"],["edit","✎","Edit reply"],
-        ["delete","✕","Delete latest reply"],["regenerate","↻","Regenerate latest reply"],
+        ["delete","✕","Delete generated reply"],["regenerate","↻","Regenerate latest reply"],
       ]) {
-        if ((action==="delete" || action==="regenerate") && !latest) continue;
+        if (action==="delete" && !isProvider) continue;
+        if (action==="regenerate" && !latest) continue;
         const button=document.createElement("button");
         button.type="button";
         button.className="reply-tool";
@@ -1096,9 +1097,18 @@ $("#storyTurns").addEventListener("click",event=>{
     actions.append(save,cancel);editor.append(field,actions);
     article.append(editor);field.focus();
   } else if (action==="delete") {
-    if (!window.confirm("Delete the latest AI reply? Your player message will remain so you can generate another response.")) return;
-    try {setStory(removeLatestProviderTurn(state,turn.id));toast("Latest reply removed. Use Generate reply to continue.");}
-    catch(error){toast(error.message);}
+    if(turn.source!=="provider")return;
+    const index=state.turns.findIndex(item=>item.id===turn.id && item.source==="provider");
+    if(index<0)return;
+    const hasLaterTurns=index<state.turns.length-1;
+    const message=hasLaterTurns
+      ? "Delete this older AI reply? All later player messages and AI replies will be kept unchanged. This may leave gaps or inconsistencies in the story."
+      : "Delete the latest AI reply? Your player message will remain so you can generate another response.";
+    if(!window.confirm(message))return;
+    try {
+      setStory(removeProviderTurn(state,turn.id));
+      toast(hasLaterTurns ? "Older reply deleted. Later story turns were preserved." : "Latest reply removed. Use Generate reply to continue.");
+    }catch(error){toast(error.message);}
   } else if (action==="regenerate") {
     if (!window.confirm("Regenerate this reply? The existing version will stay until a replacement succeeds.")) return;
     void generateLastTurn(turn.id);
