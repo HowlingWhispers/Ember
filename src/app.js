@@ -1,4 +1,4 @@
-import { createStory, createStoryFromLaunch, addPlayerTurn, addNarratorTurn, addJournalNote, advanceTime, formatClock, MAX_INPUT, cleanNarration, setStoryPersona, replacePlayerTurn, replaceProviderTurn, removeLatestProviderTurn, wrapComposerSelection, exitComposerPair } from "./engine.js";
+import { createStory, createStoryFromLaunch, addPlayerTurn, addNarratorTurn, addJournalNote, advanceTime, formatClock, MAX_INPUT, cleanNarration, setStoryMemory, setStoryPersona, replacePlayerTurn, replaceProviderTurn, removeLatestProviderTurn, wrapComposerSelection, exitComposerPair } from "./engine.js";
 import { configureStoryScope, loadStory, persistStory, getPreference, setPreference, importStory, exportStory } from "./storage.js";
 import {
   readSoundPreferences, storeSoundPreferences, saveCustomRingtone,
@@ -33,6 +33,7 @@ let soundSettings = readSoundPreferences(soundUserId);
 let soundBusy = false;
 let narrationBusy = false;
 let narrationError = "";
+let latestContextCoverage = null;
 let activeCardName = {storyId:null,characterId:null,name:""};
 let activePersonaName = {storyId:null,personaId:null,name:""};
 let codaDiscovery = loadDiscovery(liveSession?.userId, state?.id ?? "unavailable");
@@ -57,6 +58,7 @@ root.innerHTML = `
           <button type="button" id="libraryMenuButton">My Library</button>
           <button type="button" id="personaMenuButton">My Persona</button>
           ${isGuest ? '<button type="button" id="accountMenuButton">Account &amp; NovelAI</button>' : ""}
+          <button type="button" id="memoryMenuButton">Story Memory &amp; context</button>
           <button type="button" id="copySanitizedMenuButton">📋 Copy sanitized story</button>
           <button type="button" id="exportButton">Save to file</button>
           <button type="button" id="importButton">Open saved file</button>
@@ -74,6 +76,7 @@ root.innerHTML = `
               <div class="eyebrow"><span class="ornament">✧</span> ${liveSession?.mode === "character" ? "CHARACTER ROLEPLAY" : "YOUR ADVENTURE"} <span class="ornament">✧</span></div>
               <h1 id="storyTitle"></h1>
               <p class="scene-subtitle">${liveSession?.mode === "character" ? "A conversation led only by your imagination." : "A place for your story to unfold, without mandatory paths."}</p>
+              <button type="button" id="memoryButton" class="story-share-button" title="Pin important story facts and see how much history NovelAI receives.">✧ Story Memory</button>
               <button type="button" id="copySanitizedButton" class="story-share-button" title="Copy the readable story only, without account data, app controls or internal metadata. Fictional names and story content are preserved.">📋 Copy sanitized story</button>
             </div>
             <div class="notice" id="previewNotice" role="note"><strong>Offline concept preview.</strong> Your writing is saved locally. NovelAI, Orbis, and world simulation are not connected; no AI narration or canonical events are being generated.</div>
@@ -105,6 +108,7 @@ root.innerHTML = `
               <button type="button" class="primary" id="sendButton"><span class="send-label">Send ➜</span><span class="send-glyph" aria-hidden="true">➜</span></button>
             </div>
           </div>
+          <p id="contextCoverage" class="context-coverage" aria-live="polite"></p>
           <div class="narration-feedback">
             <div id="narrationStatus" class="narration-status" role="status" aria-live="polite"></div>
             <div id="narrationError" class="narration-error" role="status" hidden>
@@ -133,6 +137,7 @@ root.innerHTML = `
             ${isGuest ? '<button type="button" data-menu-action="account">Account &amp; NovelAI</button>' : ""}
             <button type="button" data-menu-action="style">Scene & style</button>
             <button type="button" data-menu-action="theme">◐ Theme</button>
+            <button type="button" data-menu-action="memory">Story Memory &amp; context</button>
             <button type="button" data-menu-action="copySanitized">📋 Copy sanitized story</button>
             <button type="button" data-menu-action="export">Save to file</button>
             <button type="button" data-menu-action="import">Open saved file</button>
@@ -190,6 +195,15 @@ root.innerHTML = `
       <p class="muted">Custom files stay in this browser on this device, scoped to your Orbis account. The built-in clip is bundled with Ember.</p>
     </fieldset>
     <div class="sheet-foot"><button class="primary" type="submit">Done</button></div>
+  </form></dialog>
+  <dialog id="memoryDialog" aria-labelledby="memoryHeading"><form id="memoryForm" class="sheet">
+    <div class="sheet-heading"><h2 id="memoryHeading">Story Memory &amp; context</h2><button class="quiet" type="button" id="closeMemoryButton" aria-label="Close memory panel">✕</button></div>
+    <p class="muted">Pin established facts you want Ember to keep in every future generation. This is your own story continuity note, not an AI-generated summary. Don't add facts your character hasn't learned.</p>
+    <label for="storyMemoryInput" class="setting-label">Pinned story facts (up to 4,000 characters)</label>
+    <textarea id="storyMemoryInput" maxlength="4000" rows="7" placeholder="Example: The player owned an ancestral home for 400 years. Rainier's orphanage replaced it, and the house was burned without notice or compensation. Rainier has only just learned this and has not resolved it."></textarea>
+    <p class="muted" id="memoryCount"></p>
+    <div class="sheet-foot"><button class="quiet" type="button" id="inspectContextButton">Check context coverage</button><button class="primary" type="submit">Save Story Memory</button></div>
+    <p id="contextDetails" class="muted" role="status" aria-live="polite"></p>
   </form></dialog>
   <dialog id="waitDialog" aria-labelledby="waitHeading"><form method="dialog" class="sheet"><div class="sheet-heading"><h2 id="waitHeading">Wait</h2><button class="quiet" type="submit" aria-label="Close">✕</button></div>
     <p class="muted">Advance the <strong>local preview clock</strong>. NPC schedules, weather, and consequences are not simulated yet.</p>
@@ -908,7 +922,7 @@ $("#newButton").addEventListener("click", () => {
   } catch (err) { toast(`Unable to create story: ${err.message}`); }
 });
 // Phone menu entries reuse the header controls, which phones hide.
-const menuTargets = { library: "#libraryMenuButton", persona:"#personaMenuButton", copySanitized:"#copySanitizedMenuButton", account: "#accountMenuButton", style: "#prefsMenuButton", theme: "#themeButton", export: "#exportButton", import: "#importButton", new: "#newButton" };
+const menuTargets = { library: "#libraryMenuButton", persona:"#personaMenuButton", memory:"#memoryMenuButton", copySanitized:"#copySanitizedMenuButton", account: "#accountMenuButton", style: "#prefsMenuButton", theme: "#themeButton", export: "#exportButton", import: "#importButton", new: "#newButton" };
 root.querySelector(".phone-menu").addEventListener("click", event => {
   const target = menuTargets[event.target.closest("[data-menu-action]")?.dataset.menuAction];
   if (!target) return;
