@@ -115,7 +115,7 @@ const EMBER_FORMATTING_GUIDANCE = [
   'Text in (parentheses) represents private thoughts, not speech; other characters cannot know these thoughts unless story context establishes a reason.',
   'Unmarked player text is freeform; interpret naturally in context, without forcing a formatting category.',
   'Players may mix speech, actions, and thoughts in one message. Do not print editor markers or role labels as narration metadata.',
-].join('\\n');
+].join('\n');
 
 export function createEmberServer({
   env = process.env,
