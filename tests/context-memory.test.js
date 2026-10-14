@@ -52,7 +52,7 @@ test("a verbose V2 card cannot crowd dialogue out to only the last two generatio
 });
 test("context diagnostics report exact included and omitted turn counts without sending an AI request",()=>{
   const story=makeStory(3,100);
-  const p=compileEmberContext({story,assets:[],bindings:[]});
+  const p=compileEmberContext({story:{...story,assetSetup:undefined},assets:[],bindings:[]});
   assert.equal(p.historyTurnsAvailable,story.turns.length);
   assert.equal(p.historyTurnsIncluded,story.turns.length);
   assert.equal(p.historyTurnsOmitted,0);
