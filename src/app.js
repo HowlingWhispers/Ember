@@ -1,4 +1,4 @@
-import { createStory, createStoryFromLaunch, addPlayerTurn, addNarratorTurn, addJournalNote, advanceTime, formatClock, MAX_INPUT, cleanNarration, wrapComposerSelection, exitComposerPair } from "./engine.js";
+import { createStory, createStoryFromLaunch, addPlayerTurn, addNarratorTurn, addJournalNote, advanceTime, formatClock, MAX_INPUT, cleanNarration, replaceProviderTurn, removeLatestProviderTurn, wrapComposerSelection, exitComposerPair } from "./engine.js";
 import { configureStoryScope, loadStory, persistStory, getPreference, setPreference, importStory, exportStory } from "./storage.js";
 import {
   readSoundPreferences, storeSoundPreferences, saveCustomRingtone,
@@ -8,7 +8,7 @@ import { parseCodaCandidate, loadDiscovery, saveDiscovery, shouldDiscover } from
 import { mountAssetLibrary } from "./library-ui.js";
 import { getStoryAssets, getLocalAsset, setStoryAssets } from "./asset-store.js";
 import { compileEmberContext } from "./context-compiler.js";
-import { segmentStoryText } from "./story-format.js";
+import { segmentStoryText, storyCharacterHeading } from "./story-format.js";
 
 const root = document.querySelector("#app");
 const liveSession = globalThis.__EMBER_SESSION__ ?? null;
@@ -32,6 +32,7 @@ let soundSettings = readSoundPreferences(soundUserId);
 let soundBusy = false;
 let narrationBusy = false;
 let narrationError = "";
+let activeCardName = {storyId:null,characterId:null,name:""};
 let codaDiscovery = loadDiscovery(liveSession?.userId, state?.id ?? "unavailable");
 let codaDiscoveryBusy = false;
 const tabs = ["here", "places", "people", "journal", "almanac"];
@@ -264,12 +265,34 @@ function updateTheme() {
   $("#fontOutput").value = `${fontSize}px`;
   root.querySelectorAll('input[name="theme"]').forEach(input => input.checked = input.value === theme);
 }
+async function loadActiveCardName(snapshot=state) {
+  const id=snapshot?.assetSetup?.characterId;
+  if (!snapshot || !id) return;
+  try {
+    const asset=await getLocalAsset(liveSession?.userId ?? "local",id);
+    if (state?.id!==snapshot.id || state.assetSetup?.characterId!==id) return;
+    const name=asset?.kind==="character" && typeof asset.fields?.name==="string"
+      ? asset.fields.name.trim() : "";
+    if (activeCardName.storyId===snapshot.id && activeCardName.characterId===id
+      && activeCardName.name===name) return;
+    activeCardName={storyId:snapshot.id,characterId:id,name};
+    render();
+  } catch { /* Keep the saved V2 story-title fallback if IndexedDB is unavailable. */ }
+}
+function storySpeakerName(snapshot=state) {
+  const id=snapshot?.assetSetup?.characterId;
+  const verified=activeCardName.storyId===snapshot?.id && activeCardName.characterId===id
+    ? activeCardName.name : "";
+  const launchName=liveSession?.mode==="character" ? liveSession.asset?.name : "";
+  return storyCharacterHeading(snapshot,verified,launchName);
+}
 function setStory(next) {
   persistStory(next);
   if (next.id !== state?.id) codaDiscovery = loadDiscovery(liveSession?.userId, next.id);
   state = next;
   loadError = "";
   render();
+  void loadActiveCardName(next);
 }
 function renderNarrationState() {
   const live = Boolean(liveSession);
@@ -301,17 +324,22 @@ function renderNarrationState() {
   // Phones float this feedback over the story; reserve scroll room only while it shows.
   $(".story-column").classList.toggle("has-feedback", narrationBusy || !$("#narrationError").hidden);
 }
-async function generateLastTurn() {
+async function generateLastTurn(replaceReplyId=null) {
   if (!liveSession || narrationBusy || !state) return;
-  const last = state.turns.at(-1);
-  if (!last || last.source !== "player") return;
+  const isReplacement=typeof replaceReplyId==="string";
+  const originalReply=state.turns.at(-1);
+  if (isReplacement && (originalReply?.id!==replaceReplyId || originalReply?.source!=="provider"
+    || state.turns.at(-2)?.source!=="player")) return;
+  const generationStory=isReplacement ? {...state,turns:state.turns.slice(0,-1)} : state;
+  const last=generationStory.turns.at(-1);
+  if (!last || last.source!=="player") return;
   const expectedStoryId = state.id;
   const expectedRevision = state.revision;
   narrationBusy = true;
   narrationError = "";
   renderNarrationState();
   try {
-    const history = state.turns
+    const history = generationStory.turns
       .filter(turn => turn.source === "player" || turn.source === "provider")
       .slice(-48)
       .map(turn => ({ mode: turn.mode, source: turn.source, text: turn.source === "provider" ? cleanNarration(turn.text) : turn.text }));
@@ -330,7 +358,7 @@ async function generateLastTurn() {
       const bindings = await getStoryAssets(liveSession.userId, state.id);
       const assets = (await Promise.all(bindings.filter(b => b.enabled !== false)
         .map(b => getLocalAsset(liveSession.userId, b.id)))).filter(Boolean);
-      const compiled = compileEmberContext({story:state,assets,bindings});
+      const compiled = compileEmberContext({story:generationStory,assets,bindings});
       requestBody = {prompt:compiled.prompt};
     }
     const response = await fetch(isGuest ? "/ember/api/guest/generate" : "/ember/api/generate",{
@@ -346,7 +374,9 @@ async function generateLastTurn() {
     if (!state || state.id !== expectedStoryId || state.revision !== expectedRevision) {
       throw new Error("Story changed during generation. Reply was not attached.");
     }
-    const completed = addNarratorTurn(state, last.id, result.text);
+    const completed = isReplacement
+      ? replaceProviderTurn(state,replaceReplyId,result.text)
+      : addNarratorTurn(state,last.id,result.text);
     setStory(completed);
     void discoverAfterNarration(completed);
     $("#storyScroll").scrollTop = $("#storyScroll").scrollHeight;
@@ -358,8 +388,8 @@ async function generateLastTurn() {
   }
 }
 // Render only DOM text nodes. Character cards and provider prose are never trusted HTML.
-function renderStoryProse(container,text) {
-  for (const paragraph of segmentStoryText(text)) {
+function renderStoryProse(container,text,narratorName="") {
+  for (const paragraph of segmentStoryText(text,{narratorName})) {
     const line=document.createElement("p");
     line.className="story-paragraph";
     if (paragraph.speaker) {
@@ -409,11 +439,37 @@ function render() {
     el.className = `turn ${turn.mode === "narrator" ? "narrator" : "player"} ${turn.mode}`;
     const label = document.createElement("div");
     label.className = "turn-label";
-    label.textContent = turn.mode === "narrator" ? (turn.source === "provider" ? "STORY" : "PREVIEW OPENING") : "YOU";
+    label.textContent = turn.mode === "narrator" ? (turn.source === "provider"
+      ? storySpeakerName() : "PREVIEW OPENING") : "YOU";
     const prose = document.createElement("div");
     prose.className = "turn-prose";
-    renderStoryProse(prose,turn.source === "provider" ? cleanNarration(turn.text) : turn.text);
+    renderStoryProse(prose,turn.source === "provider" ? cleanNarration(turn.text) : turn.text,
+      turn.source==="provider" ? storySpeakerName() : "");
     el.append(label, prose);
+    if (turn.source === "provider") {
+      const latest=state.turns.at(-1)?.id===turn.id && state.turns.at(-2)?.source==="player";
+      const tools=document.createElement("div");
+      tools.className="reply-tools";
+      tools.setAttribute("role","group");
+      tools.setAttribute("aria-label","Generated reply controls");
+      for (const [action,glyph,title] of [
+        ["copy","📋","Copy reply"],["edit","✎","Edit reply"],
+        ["delete","✕","Delete latest reply"],["regenerate","↻","Regenerate latest reply"],
+      ]) {
+        if ((action==="delete" || action==="regenerate") && !latest) continue;
+        const button=document.createElement("button");
+        button.type="button";
+        button.className="reply-tool";
+        button.dataset.replyAction=action;
+        button.dataset.replyId=turn.id;
+        button.title=title;
+        button.setAttribute("aria-label",title);
+        button.textContent=glyph;
+        button.disabled=narrationBusy;
+        tools.append(button);
+      }
+      el.append(tools);
+    }
     $("#storyTurns").append(el);
   }
   renderRail();
@@ -785,12 +841,60 @@ const assetLibrary = mountAssetLibrary({
     return true;
   },
 });
+$("#storyTurns").addEventListener("click",event=>{
+  const button=event.target.closest("button[data-reply-action]");
+  if (!button || narrationBusy || !state) return;
+  const turn=state.turns.find(item=>item.id===button.dataset.replyId && item.source==="provider");
+  if (!turn) return;
+  const action=button.dataset.replyAction;
+  if (action==="copy") {
+    void navigator.clipboard.writeText(turn.text)
+      .then(()=>toast("Reply copied to clipboard."))
+      .catch(()=>toast("Copy unavailable. Your browser may block clipboard access."));
+  } else if (action==="edit") {
+    const article=button.closest(".turn");
+    if (article.querySelector(".reply-editor")) return;
+    const editor=document.createElement("div");
+    editor.className="reply-editor";
+    const field=document.createElement("textarea");
+    field.setAttribute("aria-label","Edit generated reply");
+    field.value=turn.text;
+    field.maxLength=32000;
+    field.rows=8;
+    const actions=document.createElement("div");
+    actions.className="reply-editor-actions";
+    const save=document.createElement("button");
+    save.type="button";save.textContent="Save reply";save.className="reply-save";
+    const cancel=document.createElement("button");
+    cancel.type="button";cancel.textContent="Cancel";
+    cancel.addEventListener("click",()=>editor.remove());
+    const expectedRevision=state.revision;
+    save.addEventListener("click",()=>{
+      if (narrationBusy || state.revision!==expectedRevision
+        || !state.turns.some(item=>item.id===turn.id && item.source==="provider")) {
+        toast("Story changed while editing. Reopen the editor.");return;
+      }
+      try {setStory(replaceProviderTurn(state,turn.id,field.value));toast("Reply edited and saved locally.");}
+      catch(error){toast(error.message);}
+    });
+    actions.append(save,cancel);editor.append(field,actions);
+    article.append(editor);field.focus();
+  } else if (action==="delete") {
+    if (!window.confirm("Delete the latest AI reply? Your player message will remain so you can generate another response.")) return;
+    try {setStory(removeLatestProviderTurn(state,turn.id));toast("Latest reply removed. Use Generate reply to continue.");}
+    catch(error){toast(error.message);}
+  } else if (action==="regenerate") {
+    if (!window.confirm("Regenerate this reply? The existing version will stay until a replacement succeeds.")) return;
+    void generateLastTurn(turn.id);
+  }
+});
 $("#libraryButton").addEventListener("click", () => void assetLibrary.open());
 $("#libraryMenuButton").addEventListener("click", () => { $(".overflow").open = false; void assetLibrary.open(); });
 if (isGuest) $("#accountMenuButton").addEventListener("click",()=>{window.location.href="/ember/account";});
 updateTheme();
 updateSoundSettings();
 render();
+void loadActiveCardName();
 if (loadError) toast(loadError);
 // An Ember tab must stop showing private material when its Orbis session ends.
 if (liveSession) {
