@@ -78,7 +78,8 @@ test("visible UI lets guests set and persist response size but does not claim le
  assert.match(app,/value="short"/);
  assert.match(app,/value="normal"/);
  assert.match(app,/value="long"/);
- assert.match(app,/requestBody = \{prompt:compiled.prompt,length:generationLength\}/);
+ assert.match(app,/requestBody = \{prompt:compiled.prompt,length:requestedLength\}/);
+ assert.match(app,/const requestedLength=generationLength/);
  assert.match(app,/setPreference\("replyLength",generationLength\)/);
  assert.match(storage,/replyLength: "hw:ember:reply-length:v1"/);
  assert.match(css,/\.reply-length-picker select \{[^}]*color: var\(--text\)/);
