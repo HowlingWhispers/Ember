@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createStory, addPlayerTurn, addNarratorTurn, replacePlayerTurn, replaceProviderTurn, removeProviderTurn, removeLatestProviderTurn, advanceTime, addJournalNote, validateStory, formatClock, wrapComposerSelection, exitComposerPair } from "../src/engine.js";
+import { createStory, addPlayerTurn, addNarratorTurn, replacePlayerTurn, replaceProviderTurn, removeProviderTurn, removePlayerTurn, removeLatestProviderTurn, advanceTime, addJournalNote, validateStory, formatClock, wrapComposerSelection, exitComposerPair } from "../src/engine.js";
 import { importStory, exportStory } from "../src/storage.js";
 
 test("starts as an explicitly noncanonical concept preview", () => {
@@ -228,4 +228,54 @@ test("arbitrary reply deletion refuses player turns and unknown IDs",()=>{
   assert.throws(()=>removeProviderTurn(s,"missing"),/not found/);
   assert.throws(()=>removeProviderTurn(s,""),/not found/);
   assert.throws(()=>removeProviderTurn(null,"missing"),/not found/);
+});
+
+
+test("deleting a player's early message rewinds all AI and player turns after it",()=>{
+  const first=addPlayerTurn(createStory(),"speech","My first words.");
+  const firstId=first.turns.at(-1).id;
+  const firstAnswer=addNarratorTurn(first,firstId,"Rainier greets me.");
+  const second=addPlayerTurn(firstAnswer,"speech","I lost my home.");
+  const secondId=second.turns.at(-1).id;
+  const secondAnswer=addNarratorTurn(second,secondId,"Rainier asks why.");
+  const third=addPlayerTurn(secondAnswer,"action","I take off my gloves.");
+  const thirdAnswer=addNarratorTurn(third,third.turns.at(-1).id,"Rainier sees frostbite.");
+
+  const rewindFirst=removePlayerTurn(thirdAnswer,firstId);
+  assert.deepEqual(rewindFirst.turns,thirdAnswer.turns.slice(0,1));
+  assert.equal(rewindFirst.turns.at(-1).source,"preview");
+  assert.equal(rewindFirst.revision,thirdAnswer.revision+1);
+  assert.deepEqual(thirdAnswer.turns.at(-1).text,"Rainier sees frostbite.");
+
+  const rewindSecond=removePlayerTurn(thirdAnswer,secondId);
+  assert.deepEqual(rewindSecond.turns,thirdAnswer.turns.slice(0,3));
+  assert.equal(rewindSecond.turns.at(-1).text,"Rainier greets me.");
+  assert.ok(!rewindSecond.turns.some(t=>t.text==="I take off my gloves."));
+  assert.deepEqual(importStory(exportStory(rewindSecond)).turns,rewindSecond.turns);
+  assert.deepEqual(validateStory(rewindSecond).turns,rewindSecond.turns);
+
+  const lastPlayerId=third.turns.at(-1).id;
+  const withoutLastPlayer=removePlayerTurn(third,lastPlayerId);
+  assert.deepEqual(withoutLastPlayer.turns,third.turns.slice(0,-1));
+  const newMessage=addPlayerTurn(rewindSecond,"speech","Let me explain something else.");
+  assert.equal(newMessage.turns.at(-1).text,"Let me explain something else.");
+});
+
+test("player message removal refuses generated reply IDs, missing IDs and invalid state",()=>{
+  const player=addPlayerTurn(createStory(),"thought","I am thinking.");
+  const reply=addNarratorTurn(player,player.turns.at(-1).id,"Rainier responds.");
+  assert.throws(()=>removePlayerTurn(reply,reply.turns.at(-1).id),/Your message was not found/);
+  assert.throws(()=>removePlayerTurn(reply,"not-found"),/Your message was not found/);
+  assert.throws(()=>removePlayerTurn(reply,""),/Your message was not found/);
+  assert.throws(()=>removePlayerTurn(null,reply.turns.at(-1).id),/Your message was not found/);
+});
+
+test("rewinding a player turn keeps original story memory and previous context untouched",()=>{
+  const start=addPlayerTurn(createStory(),"speech","Original context.");
+  const second=addPlayerTurn(start,"action","Discard from here.");
+  const original={...second,storyMemory:"An earlier event we want to keep."};
+  const rewound=removePlayerTurn(original,second.turns.at(-1).id);
+  assert.equal(rewound.storyMemory,original.storyMemory);
+  assert.deepEqual(rewound.turns,start.turns);
+  assert.equal(original.turns.length,3);
 });
