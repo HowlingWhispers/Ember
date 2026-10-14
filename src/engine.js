@@ -149,6 +149,9 @@ export function cleanNarration(rawText) {
   // Orbis labels turns "PLAYER (ACTION):", and models copy that shape for their
   // own characters ("NPC (RELIC):"). Strip only uppercase NPC labels at line start.
   text = text.replace(/^[ \t]*(?:\*\*)?NPC\s*(?:\([^()\n]{1,60}\))?(?:\*\*)?\s*:\s*/gm, "");
+  // Some providers echo Character Card emotion fields as standalone stage
+  // instructions. Remove only whole metadata lines; fictional dialogue stays.
+  text = text.replace(/^[ 	]*Emotion\s*:[ 	]*[\p{L}][\p{L} \t-]{0,40}[ 	]*(?:\n|$)/gimu, "");
   text = text.replace(/\n{3,}/g, "\n\n");
   return text.trim();
 }
