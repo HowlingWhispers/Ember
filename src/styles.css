@@ -92,7 +92,7 @@ h1, h2, h3 { font-family: Georgia, "Times New Roman", serif; }
 .composer { border: 1px solid var(--border); background: var(--paper); border-radius: 12px; padding: 10px 13px; }
 .mode-switch { display: flex; gap: 4px; }
 .mode-switch button { border: 0; background: transparent; color: var(--muted); padding: 7px 14px; border-radius: 7px; font-size: 12px; }
-.mode-switch button.selected { color: var(--text); background: var(--paper-warm); box-shadow: inset 0 -2px var(--gold); }
+.mode-switch button:hover, .mode-switch button:focus-visible { color: var(--text); background: var(--paper-warm); box-shadow: inset 0 -2px var(--gold); }
 .composer textarea { display: block; resize: vertical; min-height: 76px; max-height: 210px; width: 100%; background: transparent; border: 0; outline: 0; color: var(--text); line-height: 1.5; font-size: 15px; padding: 13px 10px; }
 .composer textarea:focus-visible { outline: 0; }
 .composer textarea::placeholder { color: var(--faint); }
@@ -330,12 +330,13 @@ dialog::backdrop { background: rgba(0,0,0,.67); }
   .long-label { display: none; }
   .short-label { display: inline; }
 
-  .mode-switch { display: none; }
+  .mode-switch { display: flex; grid-column: 1 / -1; grid-row: 1; flex-wrap: wrap; gap: 3px; }
+  .mode-switch button { padding: 7px 10px; min-height: 32px; }
   .composer, :root[data-density="comfortable"] .composer { display: grid; grid-template-columns: minmax(0, 1fr) 40px; align-items: end; column-gap: 4px; padding: 3px; border-radius: 10px; }
   .composer-footer { display: contents; }
   .composer-hint { display: none; }
-  .composer textarea, :root[data-density="comfortable"] .composer textarea { grid-column: 1; grid-row: 1; min-height: 40px; max-height: 132px; padding: 9px 8px; font-size: 16px; }
-  #sendButton { grid-column: 2; grid-row: 1; width: 40px; height: 40px; padding: 0; display: grid; place-items: center; font-size: 17px; }
+  .composer textarea, :root[data-density="comfortable"] .composer textarea { grid-column: 1; grid-row: 2; min-height: 40px; max-height: 132px; padding: 9px 8px; font-size: 16px; }
+  #sendButton { grid-column: 2; grid-row: 2; width: 40px; height: 40px; padding: 0; display: grid; place-items: center; font-size: 17px; }
   .send-label { display: none; }
   .send-glyph { display: inline; }
   .input-count { display: none; grid-column: 1 / -1; grid-row: 2; justify-self: end; margin: 0; padding: 0 6px 3px; }
