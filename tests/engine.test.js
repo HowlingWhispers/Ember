@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createStory, addPlayerTurn, addNarratorTurn, replaceProviderTurn, removeLatestProviderTurn, advanceTime, addJournalNote, validateStory, formatClock, wrapComposerSelection, exitComposerPair } from "../src/engine.js";
+import { createStory, addPlayerTurn, addNarratorTurn, replacePlayerTurn, replaceProviderTurn, removeLatestProviderTurn, advanceTime, addJournalNote, validateStory, formatClock, wrapComposerSelection, exitComposerPair } from "../src/engine.js";
 import { importStory, exportStory } from "../src/storage.js";
 
 test("starts as an explicitly noncanonical concept preview", () => {
@@ -151,4 +151,33 @@ test("latest reply can be deleted without deleting the player input or older sto
   assert.throws(()=>removeLatestProviderTurn(c,c.turns.at(-1).id),/Only the latest/);
   const regen=addNarratorTurn(cut,cut.turns.at(-1).id,"Replacement");
   assert.equal(regen.turns.at(-1).text,"Replacement");
+});
+
+
+test("sent player messages can be edited without losing their turn ID, mode, or later replies",()=>{
+  const first=addPlayerTurn(createStory(),"speech",'"Mi Lord"');
+  const firstTurn=first.turns.at(-1);
+  const withReply=addNarratorTurn(first,firstTurn.id,'Rainier smiles.');
+  const after=addPlayerTurn(withReply,"action","I look at the door.");
+  const updated=replacePlayerTurn(after,firstTurn.id,'"Mi\'Lord"');
+  assert.equal(updated.turns[1].text,'"Mi\'Lord"');
+  assert.equal(updated.turns[1].mode,"speech");
+  assert.equal(updated.turns[1].id,firstTurn.id);
+  assert.deepEqual(updated.turns.slice(2),after.turns.slice(2));
+  assert.equal(updated.revision,after.revision+1);
+  assert.equal(after.turns[1].text,'"Mi Lord"');
+  assert.deepEqual(validateStory(updated).turns,updated.turns);
+});
+test("player message editing validates ownership and the 8,000-character input limit",()=>{
+  const player=addPlayerTurn(createStory(),"thought","I wonder...");
+  const id=player.turns.at(-1).id;
+  const reply=addNarratorTurn(player,id,"An answer comes.");
+  assert.throws(()=>replacePlayerTurn(reply,reply.turns.at(-1).id,"No"),/not found/);
+  assert.throws(()=>replacePlayerTurn(reply,"not-a-player-id","No"),/not found/);
+  assert.throws(()=>replacePlayerTurn(reply,id,"  "),/1 and 8,000/);
+  assert.throws(()=>replacePlayerTurn(reply,id,"x".repeat(8001)),/1 and 8,000/);
+  assert.throws(()=>replacePlayerTurn(reply,id,null),/1 and 8,000/);
+  const changed=replacePlayerTurn(reply,id,"  I understand.  ");
+  assert.equal(changed.turns.at(-2).text,"I understand.");
+  assert.equal(changed.turns.at(-2).mode,"thought");
 });
