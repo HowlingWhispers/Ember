@@ -11,6 +11,7 @@ import { compileEmberContext } from "./context-compiler.js";
 import {DEFAULT_REPLY_LENGTH,REPLY_LENGTHS,replyLengthOrDefault} from "./reply-length.js";
 import { segmentStoryText, storyCharacterHeading } from "./story-format.js";
 import { exportSanitizedStory } from "./story-share.js";
+import {detectPlayerAgency} from "./player-agency.js";
 
 const root = document.querySelector("#app");
 const liveSession = globalThis.__EMBER_SESSION__ ?? null;
@@ -528,6 +529,17 @@ function render() {
     renderStoryProse(prose,turn.source === "provider" ? cleanNarration(turn.text) : turn.text,
       turn.source==="provider" ? storySpeakerName() : "");
     el.append(label, prose);
+    if (turn.source==="provider") {
+      const agency=detectPlayerAgency(turn.text,{personaName:playerPersonaName()});
+      if(agency.suspected){
+        const warning=document.createElement("p");
+        warning.className="agency-warning";
+        warning.setAttribute("role","note");
+        warning.textContent="⚠ Possible player-control leak. Review or edit this reply; you can regenerate the latest reply.";
+        warning.title=agency.reason;
+        el.append(warning);
+      }
+    }
     if (turn.source === "provider" || turn.source === "player") {
       const isProvider=turn.source==="provider";
       const latest=isProvider && state.turns.at(-1)?.id===turn.id
