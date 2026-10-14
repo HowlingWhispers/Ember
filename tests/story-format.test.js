@@ -42,3 +42,30 @@ test("non-string or blank reader content produces no paragraphs",()=>{
   assert.deepEqual(segmentStoryText(undefined),[]);
   assert.deepEqual(segmentStoryText("  \n  "),[]);
 });
+
+
+test("speech, actions and thoughts meet readable contrast levels in both themes",async()=>{
+  const {readFileSync}=await import("node:fs");
+  const css=readFileSync(new URL("../src/styles.css",import.meta.url),"utf8");
+  const themes=[{match:css.match(/:root \{([\s\S]*?)\}/)[1],background:"#1c2530"},
+    {match:css.match(/:root\[data-theme="daylight"\] \{([\s\S]*?)\}/)[1],background:"#faf4e6"}];
+  const luminance=value=>{
+    const rgb=[1,3,5].map(i=>parseInt(value.slice(i,i+2),16)/255)
+      .map(x=>x<=0.04045?x/12.92:((x+0.055)/1.055)**2.4);
+    return rgb[0]*0.2126+rgb[1]*0.7152+rgb[2]*0.0722;
+  };
+  const contrast=(a,b)=>{
+    const [l,h]=[luminance(a),luminance(b)].sort((a,b)=>a-b);
+    return (h+0.05)/(l+0.05);
+  };
+  for(const {match,background} of themes){
+    for(const role of ["dialogue","action","thought"]){
+      const hex=match.match(new RegExp("--"+role+":\\s*(#[A-Fa-f0-9]{6})"))?.[1];
+      assert.ok(hex,"Missing color for "+role);
+      assert.ok(contrast(hex,background)>=4.5,role+" fails contrast against "+background);
+    }
+  }
+  assert.match(css,/\.story-dialogue \{[^}]*font-weight:\s*650/);
+  assert.match(css,/\.story-action \{[^}]*font-style:\s*italic/);
+  assert.match(css,/\.story-paragraph \{[^}]*margin:/);
+});
