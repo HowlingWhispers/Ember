@@ -1,4 +1,4 @@
-import { createStory, createStoryFromLaunch, addPlayerTurn, addNarratorTurn, addJournalNote, advanceTime, formatClock, MAX_INPUT, cleanNarration, setStoryPersona, replaceProviderTurn, removeLatestProviderTurn, wrapComposerSelection, exitComposerPair } from "./engine.js";
+import { createStory, createStoryFromLaunch, addPlayerTurn, addNarratorTurn, addJournalNote, advanceTime, formatClock, MAX_INPUT, cleanNarration, setStoryPersona, replacePlayerTurn, replaceProviderTurn, removeLatestProviderTurn, wrapComposerSelection, exitComposerPair } from "./engine.js";
 import { configureStoryScope, loadStory, persistStory, getPreference, setPreference, importStory, exportStory } from "./storage.js";
 import {
   readSoundPreferences, storeSoundPreferences, saveCustomRingtone,
@@ -345,6 +345,11 @@ function renderNarrationState() {
   $("#narrationErrorText").textContent = narrationError || "Your last message is saved and waiting for a reply.";
   $("#retryNarration").textContent = narrationError ? "Retry reply" : "Generate reply";
   $("#retryNarration").disabled = !canRetry;
+  // Toolbar buttons are created while generation is still busy. Explicitly
+  // release them on completion without requiring a page refresh.
+  root.querySelectorAll("#storyTurns button[data-reply-action]").forEach(button => {
+    button.disabled = narrationBusy;
+  });
   // Phones float this feedback over the story; reserve scroll room only while it shows.
   $(".story-column").classList.toggle("has-feedback", narrationBusy || !$("#narrationError").hidden);
 }
@@ -471,12 +476,14 @@ function render() {
     renderStoryProse(prose,turn.source === "provider" ? cleanNarration(turn.text) : turn.text,
       turn.source==="provider" ? storySpeakerName() : "");
     el.append(label, prose);
-    if (turn.source === "provider") {
-      const latest=state.turns.at(-1)?.id===turn.id && state.turns.at(-2)?.source==="player";
+    if (turn.source === "provider" || turn.source === "player") {
+      const isProvider=turn.source==="provider";
+      const latest=isProvider && state.turns.at(-1)?.id===turn.id
+        && state.turns.at(-2)?.source==="player";
       const tools=document.createElement("div");
       tools.className="reply-tools";
       tools.setAttribute("role","group");
-      tools.setAttribute("aria-label","Generated reply controls");
+      tools.setAttribute("aria-label",isProvider ? "Generated reply controls" : "Your message controls");
       for (const [action,glyph,title] of [
         ["copy","📋","Copy reply"],["edit","✎","Edit reply"],
         ["delete","✕","Delete latest reply"],["regenerate","↻","Regenerate latest reply"],
@@ -487,8 +494,9 @@ function render() {
         button.className="reply-tool";
         button.dataset.replyAction=action;
         button.dataset.replyId=turn.id;
-        button.title=title;
-        button.setAttribute("aria-label",title);
+        const accessibleTitle=isProvider ? title : (action==="copy" ? "Copy your message" : "Edit your message");
+        button.title=accessibleTitle;
+        button.setAttribute("aria-label",accessibleTitle);
         button.textContent=glyph;
         button.disabled=narrationBusy;
         tools.append(button);
@@ -882,12 +890,13 @@ const assetLibrary = mountAssetLibrary({
 $("#storyTurns").addEventListener("click",event=>{
   const button=event.target.closest("button[data-reply-action]");
   if (!button || narrationBusy || !state) return;
-  const turn=state.turns.find(item=>item.id===button.dataset.replyId && item.source==="provider");
+  const turn=state.turns.find(item=>item.id===button.dataset.replyId
+    && (item.source==="provider" || item.source==="player"));
   if (!turn) return;
   const action=button.dataset.replyAction;
   if (action==="copy") {
     void navigator.clipboard.writeText(turn.text)
-      .then(()=>toast("Reply copied to clipboard."))
+      .then(()=>toast(turn.source==="player" ? "Your message copied." : "Reply copied to clipboard."))
       .catch(()=>toast("Copy unavailable. Your browser may block clipboard access."));
   } else if (action==="edit") {
     const article=button.closest(".turn");
@@ -895,25 +904,34 @@ $("#storyTurns").addEventListener("click",event=>{
     const editor=document.createElement("div");
     editor.className="reply-editor";
     const field=document.createElement("textarea");
-    field.setAttribute("aria-label","Edit generated reply");
+    field.setAttribute("aria-label",turn.source==="player" ? "Edit your sent message" : "Edit generated reply");
     field.value=turn.text;
-    field.maxLength=32000;
+    field.maxLength=turn.source==="player" ? MAX_INPUT : 32000;
     field.rows=8;
     const actions=document.createElement("div");
     actions.className="reply-editor-actions";
     const save=document.createElement("button");
-    save.type="button";save.textContent="Save reply";save.className="reply-save";
+    save.type="button";save.textContent=turn.source==="player" ? "Save message" : "Save reply";save.className="reply-save";
     const cancel=document.createElement("button");
     cancel.type="button";cancel.textContent="Cancel";
     cancel.addEventListener("click",()=>editor.remove());
     const expectedRevision=state.revision;
     save.addEventListener("click",()=>{
       if (narrationBusy || state.revision!==expectedRevision
-        || !state.turns.some(item=>item.id===turn.id && item.source==="provider")) {
+        || !state.turns.some(item=>item.id===turn.id && item.source===turn.source)) {
         toast("Story changed while editing. Reopen the editor.");return;
       }
-      try {setStory(replaceProviderTurn(state,turn.id,field.value));toast("Reply edited and saved locally.");}
-      catch(error){toast(error.message);}
+      try {
+        const currentIndex=state.turns.findIndex(item=>item.id===turn.id);
+        if(turn.source==="player" && currentIndex>=0 && currentIndex<state.turns.length-1
+          && field.value.trim()!==turn.text.trim()
+          && !window.confirm("This message has later story replies. Editing it will not rewrite or remove them. Keep the later story unchanged?")) return;
+        const next=turn.source==="player"
+          ? replacePlayerTurn(state,turn.id,field.value)
+          : replaceProviderTurn(state,turn.id,field.value);
+        setStory(next);
+        toast(turn.source==="player" ? "Your message edited and saved locally." : "Reply edited and saved locally.");
+      } catch(error){toast(error.message);}
     });
     actions.append(save,cancel);editor.append(field,actions);
     article.append(editor);field.focus();
