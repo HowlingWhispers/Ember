@@ -352,7 +352,7 @@ dialog::backdrop { background: rgba(0,0,0,.67); }
   /* Right padding keeps prose clear of Coda's edge tab. */
   .story-inner, :root[data-density="comfortable"] .story-inner { padding: 14px 24px 16px 15px; }
   .story-column.has-feedback .story-inner { padding-bottom: 84px; }
-  .turn.narrator .turn-label { display: none; }
+  .turn.narrator .turn-label { display: block; font-size: 9px; margin-bottom: 5px; }
   .turn.player { margin-left: 7px; padding: 10px 14px; }
 
   .writing-desk, :root[data-density="comfortable"] .writing-desk { position: relative; padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); }
