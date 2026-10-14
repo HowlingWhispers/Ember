@@ -316,7 +316,7 @@ async function generateLastTurn() {
     const response = await fetch("/ember/api/generate",{
       method: "POST", credentials: "same-origin", cache: "no-store",
       headers: { "Content-Type":"application/json", "X-Ember-Request":"generation" },
-      body: JSON.stringify({ turns }),
+      body: JSON.stringify({ turns, characters: codaDiscovery.profiles.map(({name,role,established}) => ({name,role,established})).slice(0,12) }),
     });
     let result = {};
     try { result = await response.json(); } catch { /* gateway error */ }
