@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createStory, addPlayerTurn, addNarratorTurn, advanceTime, addJournalNote, validateStory, formatClock, wrapComposerSelection, exitComposerPair } from "../src/engine.js";
+import { createStory, addPlayerTurn, addNarratorTurn, replaceProviderTurn, removeLatestProviderTurn, advanceTime, addJournalNote, validateStory, formatClock, wrapComposerSelection, exitComposerPair } from "../src/engine.js";
 import { importStory, exportStory } from "../src/storage.js";
 
 test("starts as an explicitly noncanonical concept preview", () => {
@@ -117,4 +117,38 @@ test("Enter exits enclosing pairs anywhere without modifying authored text", () 
   assert.deepEqual(exitComposerPair('Say "(Hi)"',6),{text:'Say "(Hi) "',caret:10});
   assert.equal(exitComposerPair('Plain message',4),null);
   assert.equal(exitComposerPair('"Unclosed',4),null);
+});
+
+
+test("copy/edit toolbar model changes only requested provider reply and retains stable ID",()=>{
+  const awaiting=addPlayerTurn(createStory(),"speech",'"Mi Lord"');
+  const written=addNarratorTurn(awaiting,awaiting.turns.at(-1).id,
+    'Rainier: "A moment, please."');
+  const reply=written.turns.at(-1);
+  const edited=replaceProviderTurn(written,reply.id,'Rainier: "Come with me."');
+  assert.equal(edited.turns.at(-1).text,'Rainier: "Come with me."');
+  assert.equal(edited.turns.at(-1).id,reply.id);
+  assert.equal(edited.turns[0].id,awaiting.turns[0].id);
+  assert.equal(edited.revision,written.revision+1);
+  assert.equal(written.turns.at(-1).text,'Rainier: "A moment, please."');
+  assert.throws(()=>replaceProviderTurn(written,"missing",'text'),/not found/);
+  assert.throws(()=>replaceProviderTurn(written,reply.id,'  '),/must contain/);
+  assert.throws(()=>replaceProviderTurn(written,reply.id,'x'.repeat(32001)),/must contain/);
+  assert.deepEqual(validateStory(edited).turns.at(-1),edited.turns.at(-1));
+});
+test("latest reply can be deleted without deleting the player input or older story",()=>{
+  const a=addPlayerTurn(createStory(),"speech","First");
+  const b=addNarratorTurn(a,a.turns.at(-1).id,"First response");
+  const c=addPlayerTurn(b,"speech","Second");
+  const d=addNarratorTurn(c,c.turns.at(-1).id,"Second response");
+  const cut=removeLatestProviderTurn(d,d.turns.at(-1).id);
+  assert.equal(cut.turns.at(-1).text,"Second");
+  assert.equal(cut.turns.at(-1).source,"player");
+  assert.equal(cut.turns.at(-2).text,"First response");
+  assert.equal(cut.revision,d.revision+1);
+  assert.equal(d.turns.at(-1).text,"Second response");
+  assert.throws(()=>removeLatestProviderTurn(d,b.turns.at(-1).id),/Only the latest/);
+  assert.throws(()=>removeLatestProviderTurn(c,c.turns.at(-1).id),/Only the latest/);
+  const regen=addNarratorTurn(cut,cut.turns.at(-1).id,"Replacement");
+  assert.equal(regen.turns.at(-1).text,"Replacement");
 });
