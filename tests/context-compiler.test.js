@@ -33,7 +33,8 @@ test("native context compiles V2 roleplay, selected opening and activated indepe
  assert.match(p.prompt,/The Black Jackals are disciplined scouts/);
  assert.match(p.prompt,/Her pack guards the valley/);
  assert.match(p.prompt,/RECENT STORY TRANSCRIPT/);
- assert.match(p.prompt,/speaker.*PLAYER/);
+ assert.match(p.prompt,/\nPLAYER:\n/);
+ assert.doesNotMatch(p.prompt,/\{"speaker":/);
  assert.doesNotMatch(p.prompt,/This secret should not appear/);
  assert.doesNotMatch(p.prompt,/An empty keyword must never activate/);
  assert.ok(p.activeLoreEntries.length===2);
