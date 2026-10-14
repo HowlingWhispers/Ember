@@ -91,3 +91,29 @@ test('desktop markup and controls are unchanged outside the phone layout',()=>{
   assert.match(phoneBlock,/\.mode-switch \{ display: flex; grid-column: 1 \/ -1;/);
   assert.doesNotMatch(app,/id="modeCycle"/);
 });
+
+
+test("provider turn heading is a V2 character name, not hardcoded STORY",()=>{
+  assert.match(app,/storySpeakerName\(\)/);
+  assert.match(app,/turn\.source === "provider"[\s\S]{0,120}\? storySpeakerName\(\)/);
+  assert.doesNotMatch(app,/\?\s*"STORY"\s*:\s*"PREVIEW OPENING"/);
+  assert.match(app,/loadActiveCardName/);
+});
+test("generated replies expose accessible copy, edit, delete and regenerate controls",()=>{
+  for(const action of ["copy","edit","delete","regenerate"]){
+    assert.match(app,new RegExp('\\["'+action+'","'));
+    assert.match(app,new RegExp('action==="'+action+'"'));
+  }
+  assert.match(app,/button\.setAttribute\("aria-label",title\)/);
+  assert.match(app,/className="reply-tools"/);
+  assert.match(app,/regenerate this reply/i);
+  assert.match(css,/\.reply-tools \{/);
+  assert.match(css,/\.reply-tool \{[^}]*min-width: 38px/);
+});
+test("reroll preserves original reply until generation succeeds and requires latest player response",()=>{
+  assert.match(app,/const generationStory=isReplacement \? \{\.\.\.state,turns:state\.turns\.slice\(0,-1\)\} : state/);
+  assert.match(app,/state\.revision !== expectedRevision/);
+  assert.match(app,/replaceProviderTurn\(state,replaceReplyId,result\.text\)/);
+  assert.match(app,/removeLatestProviderTurn\(state,turn\.id\)/);
+  assert.match(app,/state\.turns\.at\(-2\)\?\.source!=="player"/);
+});
