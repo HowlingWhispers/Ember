@@ -90,3 +90,15 @@ test("Ember's library presents personas as selectable V2 cards without changing 
  assert.match(app,/generationStory\.assetSetup\?\.personaId/);
  assert.match(app,/setStoryPersona\(state,asset\?\.id\?\?null\)/);
 });
+
+
+test("temporary account links to a directly accessible V2 persona picker",async()=>{
+  const {readFileSync}=await import("node:fs");
+  const account=readFileSync(new URL("../account.html",import.meta.url),"utf8");
+  const app=readFileSync(new URL("../src/app.js",import.meta.url),"utf8");
+  assert.match(account,/href="\/ember\/\?library=persona"/);
+  assert.match(account,/Your persona is also a Character Card V2/);
+  assert.match(app,/new URLSearchParams\(window\.location\.search\)\.get\("library"\)==="persona"/);
+  assert.match(app,/assetLibrary\.open\("persona"\)/);
+  assert.match(app,/label\.textContent = turn\.mode === "narrator"[\s\S]{0,150}playerPersonaName\(\)/);
+});
