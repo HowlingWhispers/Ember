@@ -66,6 +66,53 @@ export function formatClock(world) {
   return `Day ${world.day}, ${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
 }
 
+// Ember-only writing macros. No app-specific editing semantics belong in Orbis.
+export const COMPOSER_PAIRS = Object.freeze({
+  action: ["*", "*"], speech: ['"', '"'], thought: ["(", ")"],
+});
+
+export function wrapComposerSelection(text, start, end, kind) {
+  const pair = COMPOSER_PAIRS[kind];
+  if (!pair || !Number.isInteger(start) || !Number.isInteger(end)
+    || start < 0 || end < start || end > text.length) return null;
+  const [open, close] = pair;
+  return {
+    text: text.slice(0, start) + open + text.slice(start, end) + close + text.slice(end),
+    start: start + open.length,
+    end: end + open.length,
+  };
+}
+
+// Finds the smallest *...*, "..." or (...) surrounding the caret.
+// Quotation and asterisk markers toggle; parentheses can nest.
+// Skip escaped punctuation and leave ordinary editing outside pairs alone.
+export function exitComposerPair(text, caret) {
+  if (!Number.isInteger(caret) || caret < 0 || caret > text.length) return null;
+  const pairs = [];
+  const stack = [];
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === "\\") { i++; continue; }
+    if (c === "(") stack.push({ open: i, marker: c });
+    else if (c === ")" && stack.length && stack.at(-1).marker === "(") {
+      const opened = stack.pop(); pairs.push({ start: opened.open, close: i });
+    } else if (c === '"' || c === "*") {
+      if (stack.length && stack.at(-1).marker === c) {
+        const opened = stack.pop(); pairs.push({ start: opened.open, close: i });
+      } else stack.push({ open: i, marker: c });
+    }
+  }
+  const enclosing = pairs.filter(pair => pair.start < caret && caret <= pair.close)
+    .sort((a, b) => b.start - a.start)[0];
+  if (!enclosing) return null;
+  const after = enclosing.close + 1;
+  const hasSpace = text[after] === " ";
+  return {
+    text: hasSpace ? text : text.slice(0, after) + " " + text.slice(after),
+    caret: after + 1,
+  };
+}
+
 export function addPlayerTurn(state, mode, rawText) {
   if (!allowedModes.has(mode)) throw new Error("Unknown writing mode");
   const text = rawText.trim();
