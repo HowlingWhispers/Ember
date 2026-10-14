@@ -53,15 +53,21 @@ export function mountAssetLibrary({root,owner,getStory,onStartCharacter,onSelect
       const c=asset.fields;
       const openings = [c.firstMessage,...c.alternateGreetings];
       const chosen = Math.min(link?.greeting||0,Math.max(0,openings.length-1));
-      const selector = '<label class="asset-field">Opening message<select id="assetGreeting">'+openings.map((_,i)=>'<option value="'+i+'" '+(i===chosen?'selected':'')+'>'+(i===0?'Primary greeting':'Alternate greeting '+i)+'</option>').join("")+'</select></label>';
+      const selector = type==="persona"
+        ? '<p class="asset-muted">Player-controlled V2 identity. Ember uses this card to describe you, not to speak or decide for you. Its greeting is not used as your opening.</p>'
+        : '<label class="asset-field">Opening message<select id="assetGreeting">'+openings.map((_,i)=>'<option value="'+i+'" '+(i===chosen?'selected':'')+'>'+(i===0?'Primary greeting':'Alternate greeting '+i)+'</option>').join("")+'</select></label>';
       $("#assetDetail").innerHTML = header + attach + selector
-        +'<div class="asset-content"><h4>Opening preview</h4><p class="asset-prose">'+escapeHtml(openings[chosen]||"No opening defined. Start freely.")+'</p>'
+        +'<div class="asset-content">'+(type==="persona"?"":'<h4>Opening preview</h4><p class="asset-prose">'+escapeHtml(openings[chosen]||"No opening defined. Start freely.")+'</p>')
         +'<h4>Description</h4><p class="asset-prose">'+escapeHtml(c.description||"Not specified")+'</p>'
         +'<h4>Personality</h4><p class="asset-prose">'+escapeHtml(c.personality||"Included in description or not specified")+'</p>'
         +'<h4>Scenario</h4><p class="asset-prose">'+escapeHtml(c.scenario||"No explicit scenario field. The greetings may establish a scene.")+'</p>'
         +'<h4>Example dialogue</h4><p class="asset-prose">'+escapeHtml(c.exampleMessages||"Not specified")+'</p>'
         +'<p class="asset-muted">Author: '+short(c.creator,100)+' · '+openings.length+' openings · '+(c.characterBook?.entries.length||0)+' embedded lore entries</p>'
-        +'</div><button type="button" class="asset-primary" data-action="start">Start new scene with this character</button>'+tools;
+        +'</div>'+(type==="persona"
+        ? (getStory()?.assetSetup?.personaId===asset.id
+          ? '<button type="button" class="asset-primary" data-action="clear-persona">Stop using this persona</button>'
+          : '<button type="button" class="asset-primary" data-action="select-persona">Play as this V2 persona</button>')
+        : '<button type="button" class="asset-primary" data-action="start">Start new scene with this character</button>')+tools;
     } else {
       const l=asset.fields;
       $("#assetDetail").innerHTML = header + attach
@@ -73,10 +79,12 @@ export function mountAssetLibrary({root,owner,getStory,onStartCharacter,onSelect
   async function toggleAttachment(asset,enabled,greeting) {
     const story=getStory();
     if (!story?.id) throw new Error("Open a readable story before attaching assets.");
+    if(enabled && asset.kind==="character" && story.assetSetup?.personaId===asset.id)
+      throw new Error("Your player persona cannot also be attached as an NPC.");
     const next=attached.filter(x=>x.id!==asset.id);
     next.push({id:asset.id,enabled,greeting:greeting??binding(asset.id)?.greeting??0});
     await setStoryAssets(owner(),story.id,next);
-    await refresh(enabled ? "Attached to this story locally. AI context integration is not active yet." : "Asset disabled in this story.");
+    await refresh(enabled ? "Attached to this story locally." : "Asset disabled in this story.");
   }
   async function importFile(file) {
     if (!file) return;
@@ -84,7 +92,7 @@ export function mountAssetLibrary({root,owner,getStory,onStartCharacter,onSelect
       throw new Error("File exceeds the import size limit.");
     const parsed=importEmberAsset(await file.arrayBuffer(),file.name);
     const result=await importLocalAsset(owner(),parsed);
-    type=result.asset.kind;selectedId=result.asset.id;search="";
+    type=type==="persona" && result.asset.kind==="character" ? "persona" : result.asset.kind;selectedId=result.asset.id;search="";
     $("#assetSearch").value="";
     await refresh(result.duplicate ? "This exact file is already in your library." : "Imported locally. The original is preserved for export.");
   }
