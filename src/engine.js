@@ -206,6 +206,19 @@ export function removeProviderTurn(state,turnId) {
   if(index<0)throw new Error("Generated reply was not found.");
   return {...state,revision:state.revision+1,turns:state.turns.slice(0,index)};
 }
+/**
+ * Rewind from a player-authored turn. Unlike deleting an AI reply, this also
+ * removes the triggering player message, plus every subsequent story turn.
+ * The opening and any earlier messages remain untouched.
+ */
+export function removePlayerTurn(state,turnId) {
+  if(!state || !Array.isArray(state.turns) || typeof turnId!=="string" || !turnId)
+    throw new Error("Your message was not found.");
+  const index=state.turns.findIndex(turn=>turn.id===turnId && turn.source==="player");
+  if(index<0)throw new Error("Your message was not found.");
+  return {...state,revision:state.revision+1,turns:state.turns.slice(0,index)};
+}
+
 export function removeLatestProviderTurn(state,turnId) {
   const latest=state?.turns?.at(-1);
   if(!latest || latest.source!=="provider" || latest.id!==turnId
