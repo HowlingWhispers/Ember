@@ -11,8 +11,9 @@
   --faint: #78828a;
   --gold: #cbb38b;
   --accent: #9dae9a;
-  --action: #94b6bb;
-  --thought: #c5b0c6;
+  --action: #b5dde2;
+  --thought: #cddac8;
+  --dialogue: #f1d18f;
   --shadow: rgba(0, 0, 0, .3);
   color: var(--text);
   background: var(--bg);
@@ -28,8 +29,9 @@
   --faint: #807767;
   --gold: #805c37;
   --accent: #526d59;
-  --action: #426778;
-  --thought: #805e7c;
+  --action: #345b69;
+  --thought: #505f48;
+  --dialogue: #684818;
   --shadow: rgba(73, 53, 33, .12);
   color-scheme: light;
 }
@@ -81,7 +83,15 @@ h1, h2, h3 { font-family: Georgia, "Times New Roman", serif; }
 .turn.thought .turn-label { color: var(--thought); }
 .turn-prose { margin: 0; font: 400 var(--prose-size)/1.75 Georgia, "Times New Roman", serif; white-space: pre-wrap; overflow-wrap: anywhere; }
 .turn.speech .turn-prose { color: var(--text); }
-.turn.thought .turn-prose { font-style: italic; }
+.turn.thought .turn-prose { font-style: italic; color: var(--thought); }
+/* Accessible roleplay reader: distinct paragraphs and high-contrast speech.
+   Typographic weight and spacing accompany color, never color alone. */
+.story-paragraph { margin: 0 0 1.05em; white-space: pre-wrap; overflow-wrap: anywhere; }
+.story-paragraph:last-child { margin-bottom: 0; }
+.story-dialogue { color: var(--dialogue); font-weight: 650; }
+.story-action { color: var(--action); font-style: italic; font-weight: 550; }
+.story-speaker { color: var(--dialogue); font-family: "Segoe UI", system-ui, sans-serif; font-weight: 750; font-size: .88em; margin-right: .18em; }
+
 .writing-desk { flex: 0 0 auto; min-width: 0; padding: 17px max(25px, calc((100% - 820px) / 2)); border-top: 1px solid var(--border); background: var(--surface); box-shadow: 0 -8px 28px rgba(0,0,0,.07); z-index: 1; }
 .desk-top, .desk-tools, .composer-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .desk-top { margin-bottom: 12px; }
