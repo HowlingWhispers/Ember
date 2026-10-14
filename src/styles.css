@@ -84,6 +84,27 @@ h1, h2, h3 { font-family: Georgia, "Times New Roman", serif; }
 .turn-prose { margin: 0; font: 400 var(--prose-size)/1.75 Georgia, "Times New Roman", serif; white-space: pre-wrap; overflow-wrap: anywhere; }
 .turn.speech .turn-prose { color: var(--text); }
 .turn.thought .turn-prose { font-style: italic; color: var(--thought); }
+
+/* Generated reply controls are visually subordinate to the prose, but
+   large enough to operate on both mouse and touch screens. */
+.reply-tools { display: flex; align-items: center; justify-content: flex-end; gap: 5px;
+  padding: 7px 0 0; margin-top: 9px; border-top: 1px solid var(--border); }
+.reply-tool { min-width: 38px; min-height: 38px; display: inline-flex; align-items: center;
+  justify-content: center; border: 1px solid transparent; border-radius: 8px;
+  background: transparent; color: var(--text); font: 21px/1 "Segoe UI Symbol", "Segoe UI", sans-serif; }
+.reply-tool:hover, .reply-tool:focus-visible { border-color: var(--gold); background: var(--surface);
+  color: var(--gold); }
+.reply-tool:disabled { opacity: .5; }
+.reply-editor { margin-top: 14px; padding: 13px; border: 1px solid var(--border);
+  background: var(--surface); border-radius: 9px; }
+.reply-editor textarea { width: 100%; min-height: 150px; max-height: 50vh;
+  resize: vertical; padding: 12px; color: var(--text); background: var(--paper);
+  border: 1px solid var(--border); border-radius: 8px; font: 16px/1.6 Georgia, serif; }
+.reply-editor-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 9px; }
+.reply-editor-actions button { min-height: 38px; padding: 8px 14px; border: 1px solid var(--border);
+  background: var(--paper-warm); color: var(--text); border-radius: 8px; font-size: 13px; }
+.reply-editor-actions .reply-save { border-color: var(--gold); color: var(--gold); }
+
 /* Accessible roleplay reader: distinct paragraphs and high-contrast speech.
    Typographic weight and spacing accompany color, never color alone. */
 .story-paragraph { margin: 0 0 1.05em; white-space: pre-wrap; overflow-wrap: anywhere; }
