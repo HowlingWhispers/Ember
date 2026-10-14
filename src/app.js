@@ -9,6 +9,7 @@ import { mountAssetLibrary } from "./library-ui.js";
 import { getStoryAssets, getLocalAsset, setStoryAssets } from "./asset-store.js";
 import { compileEmberContext } from "./context-compiler.js";
 import { segmentStoryText, storyCharacterHeading } from "./story-format.js";
+import { exportSanitizedStory } from "./story-share.js";
 
 const root = document.querySelector("#app");
 const liveSession = globalThis.__EMBER_SESSION__ ?? null;
@@ -56,6 +57,7 @@ root.innerHTML = `
           <button type="button" id="libraryMenuButton">My Library</button>
           <button type="button" id="personaMenuButton">My Persona</button>
           ${isGuest ? '<button type="button" id="accountMenuButton">Account &amp; NovelAI</button>' : ""}
+          <button type="button" id="copySanitizedMenuButton">📋 Copy sanitized story</button>
           <button type="button" id="exportButton">Save to file</button>
           <button type="button" id="importButton">Open saved file</button>
           <button type="button" id="newButton">New story</button>
@@ -72,6 +74,7 @@ root.innerHTML = `
               <div class="eyebrow"><span class="ornament">✧</span> ${liveSession?.mode === "character" ? "CHARACTER ROLEPLAY" : "YOUR ADVENTURE"} <span class="ornament">✧</span></div>
               <h1 id="storyTitle"></h1>
               <p class="scene-subtitle">${liveSession?.mode === "character" ? "A conversation led only by your imagination." : "A place for your story to unfold, without mandatory paths."}</p>
+              <button type="button" id="copySanitizedButton" class="story-share-button" title="Copy the readable story only, without account data, app controls or internal metadata. Fictional names and story content are preserved.">📋 Copy sanitized story</button>
             </div>
             <div class="notice" id="previewNotice" role="note"><strong>Offline concept preview.</strong> Your writing is saved locally. NovelAI, Orbis, and world simulation are not connected; no AI narration or canonical events are being generated.</div>
             <div id="storyTurns" class="story-turns" aria-live="polite"></div>
@@ -130,6 +133,7 @@ root.innerHTML = `
             ${isGuest ? '<button type="button" data-menu-action="account">Account &amp; NovelAI</button>' : ""}
             <button type="button" data-menu-action="style">Scene & style</button>
             <button type="button" data-menu-action="theme">◐ Theme</button>
+            <button type="button" data-menu-action="copySanitized">📋 Copy sanitized story</button>
             <button type="button" data-menu-action="export">Save to file</button>
             <button type="button" data-menu-action="import">Open saved file</button>
             <button type="button" data-menu-action="new">New story</button>
@@ -798,6 +802,63 @@ $("#codaRemoveButton").addEventListener("click", async () => {
   }
 });
 $("#codaTestButton").addEventListener("click", () => void testCodaSound());
+function showManualStoryCopy(transcript) {
+  // Read-only modal fallback when clipboard permissions block automatic copy.
+  const dialog=document.createElement("dialog");
+  dialog.className="story-copy-dialog";
+  const wrap=document.createElement("div");
+  const heading=document.createElement("h2");
+  heading.textContent="Copy sanitized story";
+  const note=document.createElement("p");
+  note.textContent="Your browser blocked automatic copying. Select the text and press Ctrl+C (or Cmd+C). Review fictional names and content before sharing.";
+  const input=document.createElement("textarea");
+  input.setAttribute("aria-label","Sanitized story transcript");
+  input.readOnly=true;
+  input.value=transcript;
+  input.spellcheck=false;
+  const close=document.createElement("button");
+  close.type="button";close.textContent="Close";
+  close.addEventListener("click",()=>dialog.close());
+  wrap.append(heading,note,input,close);
+  dialog.append(wrap);
+  root.append(dialog);
+  dialog.addEventListener("close",()=>dialog.remove(),{once:true});
+  dialog.showModal();
+  input.focus();
+  input.select();
+}
+async function copySanitizedStory() {
+  $(".overflow").open=false;
+  if (!state) {toast("No readable story is available to copy.");return;}
+  try {
+    const current=state;
+    let characterName=storySpeakerName(current);
+    const characterId=current.assetSetup?.characterId;
+    if(characterId){
+      const character=await getLocalAsset(liveSession?.userId??"local",characterId);
+      if(character?.kind==="character" && character.fields?.name)characterName=character.fields.name;
+    }
+    let personaName=playerPersonaName(current);
+    const personaId=current.assetSetup?.personaId;
+    if(personaId){
+      const persona=await getLocalAsset(liveSession?.userId??"local",personaId);
+      if(persona?.kind==="character" && persona.fields?.name)personaName=persona.fields.name;
+    }
+    const transcript=exportSanitizedStory(current,{characterName,personaName});
+    if(navigator.clipboard?.writeText){
+      try {
+        await navigator.clipboard.writeText(transcript);
+        toast("Sanitized story copied. Fictional names and narrative details remain.");
+        return;
+      } catch { /* Permission denied: provide a selectable fallback. */ }
+    }
+    showManualStoryCopy(transcript);
+  } catch(error) {
+    toast(error instanceof Error ? error.message : "Unable to copy the story.");
+  }
+}
+$("#copySanitizedButton").addEventListener("click",()=>void copySanitizedStory());
+$("#copySanitizedMenuButton").addEventListener("click",()=>void copySanitizedStory());
 $("#exportButton").addEventListener("click", () => {
   $(".overflow").open = false;
   if (!state) { toast("No readable story to export. Browser data was not overwritten."); return; }
@@ -843,7 +904,7 @@ $("#newButton").addEventListener("click", () => {
   } catch (err) { toast(`Unable to create story: ${err.message}`); }
 });
 // Phone menu entries reuse the header controls, which phones hide.
-const menuTargets = { library: "#libraryMenuButton", persona:"#personaMenuButton", account: "#accountMenuButton", style: "#prefsMenuButton", theme: "#themeButton", export: "#exportButton", import: "#importButton", new: "#newButton" };
+const menuTargets = { library: "#libraryMenuButton", persona:"#personaMenuButton", copySanitized:"#copySanitizedMenuButton", account: "#accountMenuButton", style: "#prefsMenuButton", theme: "#themeButton", export: "#exportButton", import: "#importButton", new: "#newButton" };
 root.querySelector(".phone-menu").addEventListener("click", event => {
   const target = menuTargets[event.target.closest("[data-menu-action]")?.dataset.menuAction];
   if (!target) return;
