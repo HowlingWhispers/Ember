@@ -106,6 +106,17 @@ function validContext(value) {
     && typeof value.asset.summary === 'string' && value.asset.summary.length <= 20000;
 }
 
+// Ember owns its editing and roleplay conventions. Orbis only forwards this
+// trusted, server-authored guidance to the user's configured NovelAI provider.
+const EMBER_FORMATTING_GUIDANCE = [
+  'Ember uses inline formatting within a single freeform player message.',
+  'Text in *asterisks* describes player actions; narrate their consequences without inventing additional player decisions.',
+  'Text in "double quotes" is speech spoken aloud; characters present can hear and respond.',
+  'Text in (parentheses) represents private thoughts, not speech; other characters cannot know these thoughts unless story context establishes a reason.',
+  'Unmarked player text is freeform; interpret naturally in context, without forcing a formatting category.',
+  'Players may mix speech, actions, and thoughts in one message. Do not print editor markers or role labels as narration metadata.',
+].join('\\n');
+
 export function createEmberServer({
   env = process.env,
   fetchFn = globalThis.fetch,
@@ -148,7 +159,7 @@ export function createEmberServer({
       const upstream = await fetchFn(`${orbisApi}/api/internal/ember/generate`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${env.EMBER_BRIDGE_SECRET}`, 'Content-Type':'application/json' },
-        body: JSON.stringify({ linkId, turns }),
+        body: JSON.stringify({ linkId, turns, appFormattingGuidance: EMBER_FORMATTING_GUIDANCE }),
         signal: controller.signal,
       });
       let payload;
