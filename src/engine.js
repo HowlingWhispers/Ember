@@ -191,6 +191,22 @@ export function removeLatestProviderTurn(state,turnId) {
   return {...state,revision:state.revision+1,turns:state.turns.slice(0,-1)};
 }
 
+/**
+ * Bind a player-controlled Character Card V2 to this story without turning it
+ * into an NPC attachment or touching any existing conversation turns.
+ */
+export function setStoryPersona(state,personaId) {
+  if (!state || typeof state!=="object") throw new Error("Open a story before choosing a persona.");
+  if (personaId!==null && (typeof personaId!=="string" || !personaId || personaId.length>160))
+    throw new Error("Select a valid V2 persona card.");
+  if (personaId && personaId===state.assetSetup?.characterId)
+    throw new Error("The story character cannot also be the player persona.");
+  const setup={...(state.assetSetup||{})};
+  if (personaId===null) delete setup.personaId;
+  else setup.personaId=personaId;
+  return {...state,revision:state.revision+1,assetSetup:setup};
+}
+
 export function advanceTime(state, elapsedMinutes) {
   if (!Number.isInteger(elapsedMinutes) || elapsedMinutes < 1 || elapsedMinutes > 1440) {
     throw new Error("Wait must be between 1 minute and 1 day");
