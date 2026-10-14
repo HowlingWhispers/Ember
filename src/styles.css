@@ -152,6 +152,17 @@ h1, h2, h3 { font-family: Georgia, "Times New Roman", serif; }
 .mode-switch { display: flex; gap: 4px; }
 .mode-switch button { border: 0; background: transparent; color: var(--muted); padding: 7px 14px; border-radius: 7px; font-size: 12px; }
 .mode-switch button:hover, .mode-switch button:focus-visible { color: var(--text); background: var(--paper-warm); box-shadow: inset 0 -2px var(--gold); }
+
+.reply-length-picker { margin-left: auto; display: inline-flex; gap: 6px; align-items: center;
+  font-size: 11px; font-weight: 650; color: var(--text); white-space: nowrap; }
+.reply-length-picker select { max-width: 180px; min-height: 35px; padding: 6px 8px; border: 1px solid var(--border);
+  border-radius: 7px; background: var(--paper-warm); color: var(--text); font: inherit; cursor: pointer; }
+.reply-length-picker select:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+@media (max-width: 600px) {
+  .reply-length-picker { margin-left: auto; font-size: 10px; }
+  .reply-length-picker select { min-height: 32px; max-width: 147px; padding: 4px 5px; }
+}
+
 .composer textarea { display: block; resize: vertical; min-height: 76px; max-height: 210px; width: 100%; background: transparent; border: 0; outline: 0; color: var(--text); line-height: 1.5; font-size: 15px; padding: 13px 10px; }
 .composer textarea:focus-visible { outline: 0; }
 .composer textarea::placeholder { color: var(--faint); }
