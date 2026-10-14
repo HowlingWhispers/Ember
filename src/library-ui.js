@@ -127,7 +127,19 @@ export function mountAssetLibrary({root,owner,getStory,onStartCharacter,onSelect
     }
     if(action==="remove-greeting"){event.target.closest("[data-greeting-item]")?.remove();return;}
     try {
-      if(action==="start" && asset.kind==="character"){
+      if(action==="select-persona" && type==="persona" && asset.kind==="character"){
+        if(getStory()?.assetSetup?.characterId===asset.id)
+          throw new Error("Choose a different V2 card; the selected card is your story character.");
+        if(binding(asset.id)?.enabled)
+          throw new Error("Disable this card's NPC attachment before using it as your persona.");
+        await onSelectPersona(asset);
+        await refresh("Playing as "+asset.fields.name+". This choice is saved with your story.");
+      }
+      if(action==="clear-persona" && type==="persona" && getStory()?.assetSetup?.personaId===asset.id){
+        await onSelectPersona(null);
+        await refresh("Player persona cleared. Choose another V2 card at any time.");
+      }
+      if(action==="start" && type==="character" && asset.kind==="character"){
         const index=Number($("#assetGreeting").value)||0;
         const launched=await onStartCharacter(asset,index);
         if(launched){ await setStoryAssets(owner(),getStory().id,[{id:asset.id,enabled:true,greeting:index}]);shell.close(); }
@@ -180,7 +192,7 @@ export function mountAssetLibrary({root,owner,getStory,onStartCharacter,onSelect
     try{
       const updated=buildEditedAsset(asset,readAssetEditor(event.target,asset));
       const result=await importLocalAsset(owner(),updated);
-      type=result.asset.kind;selectedId=result.asset.id;editingAssetId=null;
+      type=type==="persona" && result.asset.kind==="character" ? "persona" : result.asset.kind;selectedId=result.asset.id;editingAssetId=null;
       await refresh(result.duplicate
         ? "An identical edited copy already exists. Opened that copy."
         : "Saved an editable JSON copy locally. Your original is unchanged.");
@@ -189,7 +201,9 @@ export function mountAssetLibrary({root,owner,getStory,onStartCharacter,onSelect
   });
   $("#assetSearch").addEventListener("input", event=>{search=event.target.value;render();});
   return {
-    async open() {
+    async open(tab="character") {
+      if (["character","persona","lorebook"].includes(tab)) type=tab;
+      selectedId=null;editingAssetId=null;
       shell.showModal();
       try{await refresh();}catch(error){status("Local library unavailable: "+error.message);}
     },
