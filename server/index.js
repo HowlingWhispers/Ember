@@ -38,6 +38,7 @@ const ALLOWED_FILES = new Map([
   ['/ember/src/lore-engine.js', ['src/lore-engine.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/context-compiler.js', ['src/context-compiler.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/story-format.js', ['src/story-format.js', 'text/javascript; charset=utf-8']],
+  ['/ember/src/story-share.js', ['src/story-share.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/library-ui.js', ['src/library-ui.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/library.css', ['src/library.css', 'text/css; charset=utf-8']],
   ['/ember/assets/sounds/hey-listen.mp3', ['assets/sounds/hey-listen.mp3', 'audio/mpeg']],
