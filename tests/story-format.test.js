@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { segmentStoryText } from "../src/story-format.js";
+import { segmentStoryText, storyCharacterHeading } from "../src/story-format.js";
 import { cleanNarration } from "../src/engine.js";
 
 test("Rainier's prose is separated into comfortable paragraphs with dialogue and stage metadata removed",()=>{
@@ -68,4 +68,26 @@ test("speech, actions and thoughts meet readable contrast levels in both themes"
   assert.match(css,/\.story-dialogue \{[^}]*font-weight:\s*650/);
   assert.match(css,/\.story-action \{[^}]*font-style:\s*italic/);
   assert.match(css,/\.story-paragraph \{[^}]*margin:/);
+});
+
+
+test("V2 card provides the turn heading; old saved title still resolves Rainier",()=>{
+  const previous={title:"Story with Rainier",assetSetup:{characterId:"v2-rainier"}};
+  assert.equal(storyCharacterHeading(previous),"Rainier");
+  assert.equal(storyCharacterHeading(previous,"Count Rainier Vaugeois"),"Count Rainier Vaugeois");
+  assert.equal(storyCharacterHeading(previous,"","Some other launch"),"Rainier");
+  assert.equal(storyCharacterHeading({title:"Free Sandbox"}),"STORY");
+  assert.equal(storyCharacterHeading({title:"Roleplay",assetSetup:null},"","Lady Eir"),"Lady Eir");
+  assert.equal(storyCharacterHeading({title:"Story with Rainier"}),"STORY",
+    "Do not invent main-character identity based on a generic unbound title");
+});
+test("primary speaker attribution is redundant under Rainier heading, but other speakers remain",()=>{
+  const text='Rainier: "My apologies." His voice lowers.\nCosteau: "Very good, my lord."';
+  const lines=segmentStoryText(text,{narratorName:"Rainier"});
+  assert.equal(lines[0].speaker,null);
+  assert.equal(lines[0].parts[0].text,'"My apologies."');
+  assert.equal(lines[1].speaker,"Costeau");
+  assert.equal(lines[1].parts[0].text,'"Very good, my lord."');
+  assert.equal(segmentStoryText('RAINIER: "A moment."',{narratorName:"rainier"})[0].speaker,null);
+  assert.equal(segmentStoryText('Rainier: "Hello."')[0].speaker,"Rainier");
 });
