@@ -725,7 +725,23 @@ $("#menuButton").addEventListener("click", () => setRail(!railOpen));
 $("#railScrim").addEventListener("click", closeRail);
 $("#closeRail").addEventListener("click", closeRail);
 document.addEventListener("keydown", event => { if (event.key === "Escape") { closeRail(); hideToast(); } });
-const assetLibrary = mountAssetLibrary({ root, owner: () => liveSession?.userId ?? "local", getStory: () => state });
+const assetLibrary = mountAssetLibrary({
+  root, owner: () => liveSession?.userId ?? "local", getStory: () => state,
+  onStartCharacter: async (asset, openingIndex) => {
+    if (narrationBusy) { toast("Wait for narration to finish before changing stories."); return false; }
+    if (!window.confirm("Start a new story with this character? Export your current story first if you want to keep it.")) return false;
+    const fresh = liveSession ? createStoryFromLaunch(liveSession) : createStory();
+    const message = [asset.fields.firstMessage, ...asset.fields.alternateGreetings][openingIndex] || "";
+    const greeting = message.replaceAll("{{char}}", asset.fields.name).replaceAll("{{user}}", "you");
+    fresh.title = "Story with " + asset.fields.name;
+    fresh.assetSetup = { characterId: asset.id, openingIndex, scenario: asset.fields.scenario };
+    if (greeting) fresh.turns = [{ id: crypto.randomUUID(), source: "preview", mode: "narrator", text: greeting }];
+    narrationError = "";
+    setStory(fresh);
+    toast("New story opened with the selected greeting. AI character context integration is pending.");
+    return true;
+  },
+});
 $("#libraryButton").addEventListener("click", () => void assetLibrary.open());
 $("#libraryMenuButton").addEventListener("click", () => { $(".overflow").open = false; void assetLibrary.open(); });
 updateTheme();
