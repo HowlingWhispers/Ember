@@ -30,7 +30,7 @@ const FONT_KEY = "hw:ember:font:v1";
 
 // Each preference needs its own key. Density used to share the font key, so
 // choosing a layout reset the text size and moving the slider reset the layout.
-const PREFERENCE_KEYS = { theme: THEME_KEY, font: FONT_KEY, density: "hw:ember:density:v1" };
+const PREFERENCE_KEYS = { theme: THEME_KEY, font: FONT_KEY, density: "hw:ember:density:v1", replyLength: "hw:ember:reply-length:v1" };
 
 export function loadStory() {
   try {
