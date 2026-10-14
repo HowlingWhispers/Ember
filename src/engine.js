@@ -193,6 +193,18 @@ export function replaceProviderTurn(state,turnId,rawText) {
   return {...state,revision:state.revision+1,turns:state.turns.map((turn,i)=>
     i===index?{...turn,text}:turn)};
 }
+/**
+ * Delete any selected AI turn without rewriting subsequent player or provider
+ * turns. History continuity may change, so the UI warns before an older delete.
+ */
+export function removeProviderTurn(state,turnId) {
+  if(!state || !Array.isArray(state.turns) || typeof turnId!=="string" || !turnId)
+    throw new Error("Generated reply was not found.");
+  const index=state.turns.findIndex(turn=>turn.id===turnId && turn.source==="provider");
+  if(index<0)throw new Error("Generated reply was not found.");
+  return {...state,revision:state.revision+1,
+    turns:state.turns.filter((_,i)=>i!==index)};
+}
 export function removeLatestProviderTurn(state,turnId) {
   const latest=state?.turns?.at(-1);
   if(!latest || latest.source!=="provider" || latest.id!==turnId
