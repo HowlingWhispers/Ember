@@ -146,7 +146,8 @@ export function createEmberServer({
   fetchFn = globalThis.fetch,
   rootDir = APP_ROOT,
 } = {}) {
-  if (typeof env.EMBER_BRIDGE_SECRET !== 'string' || env.EMBER_BRIDGE_SECRET.length < 32) {
+  if (env.EMBER_GUEST_ENABLED !== '1'
+    && (typeof env.EMBER_BRIDGE_SECRET !== 'string' || env.EMBER_BRIDGE_SECRET.length < 32)) {
     throw new Error('EMBER_BRIDGE_SECRET must match the 32+-character Orbis server bridge secret.');
   }
   // Use the URL origin, not the raw env string. A harmless trailing slash in
