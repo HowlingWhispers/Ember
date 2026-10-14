@@ -164,14 +164,21 @@ export function createEmberServer({
       return validContext(data) ? data : null;
     } finally { clearTimeout(timeout); }
   }
-  async function orbisGenerate(linkId, turns, task = "narration") {
+  async function orbisGenerate(linkId, turns, task = "narration", characters = []) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), GENERATION_TIMEOUT);
     try {
       const upstream = await fetchFn(`${orbisApi}/api/internal/ember/generate`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${env.EMBER_BRIDGE_SECRET}`, 'Content-Type':'application/json' },
-        body: JSON.stringify({ linkId, turns, task, appFormattingGuidance: task === "discovery" ? CODA_DISCOVERY_GUIDANCE : EMBER_FORMATTING_GUIDANCE }),
+        body: JSON.stringify({
+          linkId, turns, task,
+          appFormattingGuidance: task === "discovery" ? CODA_DISCOVERY_GUIDANCE
+            : EMBER_FORMATTING_GUIDANCE + (characters.length
+              ? "\nPreviously approved story-local characters (not Orbis canon):\n" +
+                characters.map(c => `${c.name}: ${c.role}; ${c.established}`).join("\n").slice(0, 700)
+              : ""),
+        }),
         signal: controller.signal,
       });
       let payload;
@@ -263,6 +270,13 @@ export function createEmberServer({
         catch (err) { return respond(response, err?.status === 413 ? 413 : 400,{error:'Invalid generation request.'}); }
         const task = body?.task === 'discovery' ? 'discovery' : 'narration';
         if (body?.task !== undefined && body.task !== 'discovery' && body.task !== 'narration') return respond(response,400,{error:'Unknown generation task.'});
+        const characters = body?.characters ?? [];
+        if (!Array.isArray(characters) || characters.length > 12 || !characters.every(c =>
+          c && typeof c === 'object' && typeof c.name === 'string' && c.name.length <= 120
+          && typeof c.role === 'string' && c.role.length <= 200
+          && typeof c.established === 'string' && c.established.length <= 200)) {
+          return respond(response,400,{error:'Invalid local character profiles.'});
+        }
         const turns = body?.turns;
         if (!Array.isArray(turns) || turns.length < 1 || turns.length > MAX_GENERATION_TURNS
           || !turns.every(turn => turn && typeof turn === 'object'
@@ -281,7 +295,7 @@ export function createEmberServer({
         if (generating.has(lock)) return respond(response,429,{error:'A reply is already generating.'});
         generating.add(lock);
         try {
-          const result = await orbisGenerate(context.linkId,turns,task);
+          const result = await orbisGenerate(context.linkId,turns,task,characters);
           return respond(response,result.status,
             result.status === 200 ? {text:result.text} : {error:result.error,code:result.code});
         } finally { generating.delete(lock); }
