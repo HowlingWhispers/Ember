@@ -122,3 +122,24 @@ test("guest key removal is explicit and does not destroy the guest identity",asy
  assert.equal((await (await app.call(cookie,"/ember/api/guest/session")).json()).userId,original);
  assert.equal((await (await app.call(cookie,"/ember/api/guest/provider")).json()).configured,false);
 });
+
+
+test("guest generation strictly validates and forwards length presets to the provider",async t=>{
+ const app=await fixture(t);
+ for(const [length,expectedTokens] of [["short",240],["normal",384],["long",680]]){
+   const {cookie}=await app.enter();
+   assert.equal((await app.call(cookie,"/ember/api/guest/provider","PUT",
+     {model:"xialong-v1",apiKey:"test-only-credential-length-"+length},json)).status,200);
+   const invalid=await app.call(cookie,"/ember/api/guest/generate","POST",
+     {prompt,length:"unlimited"},generation);
+   assert.equal(invalid.status,400);
+   const oversized=await app.call(cookie,"/ember/api/guest/generate","POST",
+     {prompt,length,maxTokens:2048},generation);
+   assert.equal(oversized.status,400,"Client must never choose arbitrary token ceilings");
+   const response=await app.call(cookie,"/ember/api/guest/generate","POST",{prompt,length},generation);
+   assert.equal(response.status,200);
+   assert.deepEqual(await response.json(),{text:"Heather raises an eyebrow."});
+   assert.equal(JSON.parse(app.calls.at(-1).opts.body).max_tokens,expectedTokens);
+ }
+ assert.equal(app.calls.length,3);
+});
