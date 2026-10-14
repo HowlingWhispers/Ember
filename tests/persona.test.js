@@ -31,7 +31,7 @@ test("imported V2 cards may independently represent an NPC and a player persona"
  assert.match(result.prompt,/Rainier Vaugeois/);
  assert.match(result.prompt,/courteous but impatient noble/);
  assert.match(result.prompt,/The wound is old/);
- assert.match(result.prompt,/Never write the player persona.s dialogue/);
+ assert.match(result.prompt,/The player controls their own dialogue, thoughts, decisions and actions/);
  const playerSection=result.prompt.split("[PLAYER PERSONA V2 (PLAYER CONTROLLED): FICTION REFERENCE DATA]")[1].split("[END PLAYER PERSONA V2")[0];
  assert.doesNotMatch(playerSection,/NPC greeting, not the player/);
 });
