@@ -28,6 +28,7 @@ const ALLOWED_FILES = new Map([
   ['/ember/src/coda-sound.js', ['src/coda-sound.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/coda-discovery.js', ['src/coda-discovery.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/asset-import.js', ['src/asset-import.js', 'text/javascript; charset=utf-8']],
+  ['/ember/src/asset-backup.js', ['src/asset-backup.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/asset-store.js', ['src/asset-store.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/lore-engine.js', ['src/lore-engine.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/library-ui.js', ['src/library-ui.js', 'text/javascript; charset=utf-8']],
