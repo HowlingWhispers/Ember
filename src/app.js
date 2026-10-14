@@ -1100,14 +1100,19 @@ $("#storyTurns").addEventListener("click",event=>{
     if(turn.source!=="provider")return;
     const index=state.turns.findIndex(item=>item.id===turn.id && item.source==="provider");
     if(index<0)return;
-    const hasLaterTurns=index<state.turns.length-1;
+    const removedCount=state.turns.length-index;
+    const hasLaterTurns=removedCount>1;
     const message=hasLaterTurns
-      ? "Delete this older AI reply? All later player messages and AI replies will be kept unchanged. This may leave gaps or inconsistencies in the story."
-      : "Delete the latest AI reply? Your player message will remain so you can generate another response.";
+      ? "Rewind the story here? This AI reply and all "+(removedCount-1)
+        +" later messages and AI replies will be permanently deleted ("+removedCount
+        +" turns total). Your message immediately before this reply will be kept. Continue?"
+      : "Delete the latest AI reply? Your preceding player message will remain, ready to generate a new response.";
     if(!window.confirm(message))return;
     try {
       setStory(removeProviderTurn(state,turn.id));
-      toast(hasLaterTurns ? "Older reply deleted. Later story turns were preserved." : "Latest reply removed. Use Generate reply to continue.");
+      toast(hasLaterTurns
+        ? "Story rewound by "+removedCount+" turns. You can now continue from the earlier message."
+        : "Latest reply removed. Use Generate reply to continue.");
     }catch(error){toast(error.message);}
   } else if (action==="regenerate") {
     if (!window.confirm("Regenerate this reply? The existing version will stay until a replacement succeeds.")) return;
