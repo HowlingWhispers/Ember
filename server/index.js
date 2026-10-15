@@ -41,6 +41,7 @@ const ALLOWED_FILES = new Map([
   ['/ember/src/story-share.js', ['src/story-share.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/reply-length.js', ['src/reply-length.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/player-agency.js', ['src/player-agency.js', 'text/javascript; charset=utf-8']],
+  ['/ember/src/persona-turn.js', ['src/persona-turn.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/library-ui.js', ['src/library-ui.js', 'text/javascript; charset=utf-8']],
   ['/ember/src/library.css', ['src/library.css', 'text/css; charset=utf-8']],
   ['/ember/assets/sounds/hey-listen.mp3', ['assets/sounds/hey-listen.mp3', 'audio/mpeg']],
