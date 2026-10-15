@@ -138,7 +138,7 @@ export function mountAssetLibrary({root,owner,getStory,onStartCharacter,onSelect
     else overrides[key]={...(overrides[key]||{}),...change};
     const normalized=normalizeEntryOverrides(overrides,asset.fields.entries.map(e=>e.sourceId));
     const next=attached.filter(link=>link.id!==asset.id);
-    next.push({id:asset.id,enabled:currentBinding?.enabled!==false,
+    next.push({id:asset.id,enabled:currentBinding?.enabled===true,
       greeting:currentBinding?.greeting||0,entryOverrides:normalized});
     await setStoryAssets(owner(),story.id,next);
     await refresh("Story-only lore settings saved. Imported JSON is untouched.");
