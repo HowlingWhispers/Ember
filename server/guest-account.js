@@ -5,6 +5,7 @@ import { createGuestVault, GUEST_COOKIE_AGE } from "./guest-vault.js";
 import { generateNovelAI, EmberProviderError } from "./novelai.js";
 import {DEFAULT_REPLY_LENGTH,replyLength,PERSONA_TURN_LENGTH} from "../src/reply-length.js";
 import { normalizePersonaDraft,personaNameFromPrompt } from "../src/persona-turn.js";
+import {PERSONA_CREATIVITY} from "../src/persona-options.js";
 const COOKIE="ember.guest";
 const TOKEN=/^[A-Za-z0-9_-]{43}$/;
 function writeJson(res,status,data) {
@@ -117,8 +118,11 @@ export function createGuestAccess({env,fetchFn=globalThis.fetch,rootDir,secureCo
       try{body=await readJson(request,26000);}
       catch(error){writeJson(response,error.status||400,{error:"Invalid generation request."});return true;}
       const personaTask=body?.task==="persona";
+      const shape=body && typeof body==="object" && !Array.isArray(body) ? Object.keys(body).sort().join(",") : "";
+      const acceptedShapes=personaTask ? ["prompt,task","length,prompt,task","creativity,prompt,task","creativity,length,prompt,task"] : ["prompt","length,prompt"];
       if(!body || typeof body!=="object" || Array.isArray(body)
-        || !["prompt","length,prompt","prompt,task","length,prompt,task"].includes(Object.keys(body).sort().join(","))
+        || !acceptedShapes.includes(shape)
+        || (personaTask && body.creativity!==undefined && !PERSONA_CREATIVITY.some(x=>x.value===body.creativity))
         || (body.task!==undefined && !personaTask)
         || typeof body.prompt!=="string" || !body.prompt.startsWith("EMBER / FREEFORM ROLEPLAY\n")
         || body.prompt.length<80 || body.prompt.length>22000
@@ -150,6 +154,7 @@ export function createGuestAccess({env,fetchFn=globalThis.fetch,rootDir,secureCo
           token:settings.apiKey,model:settings.model,prompt:body.prompt,fetchFn,
           maxTokens:personaTask ? PERSONA_TURN_LENGTH.maxTokens : lengthSettings.maxTokens,
           maxWords:personaTask ? PERSONA_TURN_LENGTH.maxWords : lengthSettings.maxWords,
+          ...(personaTask ? {temperature:PERSONA_CREATIVITY.find(x=>x.value===(body.creativity||"high")).temperature}:{}),
         });
         const draft=personaTask ? normalizePersonaDraft(result.text,{personaName:personaNameFromPrompt(body.prompt)}) : null;
         const text=draft?.text ?? result.text;
