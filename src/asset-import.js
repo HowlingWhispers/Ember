@@ -85,7 +85,8 @@ function normalizedEntry(e, index, kind) {
   const source = kind === "v2" ? "v2" : "standalone";
   const keys = optionalList(e.keys ?? e.key, "entry keys", 128);
   const secondary = optionalList(e.secondary_keys ?? e.keysecondary, "secondary keys", 128);
-  const enabled = bool(e.enabled, !bool(e.disable, false));
+  // Treat disable:true as authoritative even when enabled:true also occurs.
+  const enabled = e.disable === true ? false : bool(e.enabled, true);
   const probability = Math.min(100, Math.max(0, number(e.probability ?? e.extensions?.probability, 100)));
   return {
     sourceId: String(e.uid ?? e.id ?? index),

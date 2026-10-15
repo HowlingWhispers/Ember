@@ -1,6 +1,7 @@
+import {applyLoreOverrides} from "./lore-overrides.js";
 // Ember-owned deterministic lore activation. Imported text is data, not policy.
 const tokenEstimate = value => Math.ceil([...String(value)].length / 4);
-const escapeRegex = s => s.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
+const escapeRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 function contains(haystack, needle, sensitive, wholeWord = true) {
   if (!needle) return false;
   const start = wholeWord && /^\w/.test(needle) ? "\\b" : "";
@@ -36,7 +37,8 @@ export function checkLoreEntry(entry, context, book, round = 0) {
 export function activateLorebooks(books, turns, maxTokens = 6000) {
   const found = [], diagnostics = [], all = [];
   for (const bookInfo of books) {
-    const book = bookInfo?.fields || bookInfo;
+    const effective=applyLoreOverrides(bookInfo);
+    const book = effective?.fields || effective;
     if (!book || !Array.isArray(book.entries)) continue;
     const id = String(bookInfo?.id || book.name || "lorebook");
     const budget = Math.max(0, Math.min(book.tokenBudget, maxTokens));
