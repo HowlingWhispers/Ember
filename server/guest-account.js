@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { createGuestVault, GUEST_COOKIE_AGE } from "./guest-vault.js";
 import { generateNovelAI, EmberProviderError } from "./novelai.js";
 import {DEFAULT_REPLY_LENGTH,replyLength} from "../src/reply-length.js";
+import { cleanPersonaDraft } from "../src/persona-turn.js";
 const COOKIE="ember.guest";
 const TOKEN=/^[A-Za-z0-9_-]{43}$/;
 function writeJson(res,status,data) {
@@ -115,9 +116,17 @@ export function createGuestAccess({env,fetchFn=globalThis.fetch,rootDir,secureCo
       let body;
       try{body=await readJson(request,26000);}
       catch(error){writeJson(response,error.status||400,{error:"Invalid generation request."});return true;}
-      if(!body || typeof body!=="object" || Array.isArray(body) || !["prompt","length,prompt"].includes(Object.keys(body).sort().join(","))
+      const personaTask=body?.task==="persona";
+      if(!body || typeof body!=="object" || Array.isArray(body)
+        || !["prompt","length,prompt","prompt,task","length,prompt,task"].includes(Object.keys(body).sort().join(","))
+        || (body.task!==undefined && !personaTask)
         || typeof body.prompt!=="string" || !body.prompt.startsWith("EMBER / FREEFORM ROLEPLAY\n")
-        || body.prompt.length<80 || body.prompt.length>22000 || !body.prompt.endsWith("\nNARRATOR:")){
+        || body.prompt.length<80 || body.prompt.length>22000
+        || (personaTask
+          ? !body.prompt.endsWith("\nPLAYER:")
+            || !body.prompt.includes("[PLAYER PERSONA V2 (PLAYER CONTROLLED): FICTION REFERENCE DATA]")
+            || !body.prompt.includes("Write ONE proposed PLAYER turn")
+          : !body.prompt.endsWith("\nNARRATOR:"))){
         writeJson(response,400,{error:"Invalid Ember story context."});return true;
       }
       let lengthSettings;
@@ -141,7 +150,8 @@ export function createGuestAccess({env,fetchFn=globalThis.fetch,rootDir,secureCo
           token:settings.apiKey,model:settings.model,prompt:body.prompt,fetchFn,
           maxTokens:lengthSettings.maxTokens,maxWords:lengthSettings.maxWords,
         });
-        writeJson(response,200,{text:result.text,...(result.shortened?{shortened:true}:{})});
+        const text=personaTask ? cleanPersonaDraft(result.text) : result.text;
+        writeJson(response,200,{text,...(result.shortened?{shortened:true}:{})});
       }catch(error){
         const e=error instanceof EmberProviderError?error:null;
         writeJson(response,e?.status||502,{
