@@ -12,6 +12,7 @@ import {DEFAULT_REPLY_LENGTH,REPLY_LENGTHS,replyLengthOrDefault} from "./reply-l
 import { segmentStoryText, storyCharacterHeading } from "./story-format.js";
 import { exportSanitizedStory } from "./story-share.js";
 import {detectPlayerAgency} from "./player-agency.js";
+import {personaTurnBlocker,cleanPersonaDraft} from "./persona-turn.js";
 
 const root = document.querySelector("#app");
 const liveSession = globalThis.__EMBER_SESSION__ ?? null;
@@ -35,6 +36,8 @@ let soundSettings = readSoundPreferences(soundUserId);
 let soundBusy = false;
 let narrationBusy = false;
 let narrationError = "";
+let personaBusy = false;
+let personaPreview = null;
 let generationLength=replyLengthOrDefault(getPreference("replyLength",DEFAULT_REPLY_LENGTH));
 let latestContextCoverage = null;
 let activeCardName = {storyId:null,characterId:null,name:""};
@@ -93,6 +96,7 @@ root.innerHTML = `
               <button type="button" id="menuButton" class="chip-button phone-only" aria-label="Story menu" aria-expanded="false" aria-controls="worldRail">☰</button>
               <button type="button" id="goButton" class="chip-button">↗ Go</button>
               <button type="button" id="waitButton" class="chip-button">◷ Wait</button>
+              <button type="button" id="personaAIButton" class="chip-button" title="Choose a V2 player persona first">✧ AI Turn</button>
               <button type="button" id="passButton" class="chip-button" disabled title="Available when a narrator is connected"><span class="long-label">Pass the turn</span><span class="short-label">Pass</span></button>
               
             </div>
@@ -176,6 +180,20 @@ root.innerHTML = `
     </div>
     <button type="button" id="codaButton" class="coda-orb" aria-label="Open Coda companion preview" aria-expanded="false" aria-controls="codaBubble" title="Coda: Hey! Listen!"><span aria-hidden="true">🐾</span><span class="coda-orb-label">Coda</span></button>
   </section>
+  <dialog id="personaDialog" aria-labelledby="personaHeading">
+    <div class="sheet">
+      <div class="sheet-heading"><h2 id="personaHeading">✧ Persona AI turn</h2><button id="personaClose" class="quiet" type="button" aria-label="Close persona draft">✕</button></div>
+      <p class="setting-label">An independent, character-driven player turn. Nothing is submitted until you approve.</p>
+      <label for="personaDraft" class="setting-label">Review or edit your proposed turn</label>
+      <textarea id="personaDraft" rows="7" maxlength="${MAX_INPUT}" placeholder="Your persona's proposed action, speech or thoughts"></textarea>
+      <p id="personaDraftError" class="narration-error" role="alert" aria-live="polite"></p>
+      <div class="sheet-foot">
+        <button type="button" id="personaCancel" class="quiet">Cancel</button>
+        <button type="button" id="personaRegenerate" class="chip-button">↻ Regenerate</button>
+        <button type="button" id="personaAccept" class="primary">Accept &amp; send</button>
+      </div>
+    </div>
+  </dialog>
   <dialog id="styleDialog" aria-labelledby="styleHeading"><form method="dialog" class="sheet"><div class="sheet-heading"><h2 id="styleHeading">Scene &amp; style</h2><button class="quiet" type="submit" aria-label="Close">✕</button></div>
     <p class="muted">Make the story comfortable to read. These controls affect presentation only.</p>
     <fieldset><legend>Reading theme</legend><div class="theme-choices"><label><input type="radio" name="theme" value="lamplight"> Lamplight</label><label><input type="radio" name="theme" value="daylight"> Daylight</label></div></fieldset>
@@ -347,7 +365,7 @@ function renderNarrationState() {
   const live = Boolean(liveSession);
   const last = state?.turns.at(-1);
   const canRetry = live && !narrationBusy && last?.source === "player";
-  $("#sendButton").disabled = !state || narrationBusy || (canRetry && !$("#playerInput").value.trim());
+  $("#sendButton").disabled = !state || narrationBusy || personaBusy || (canRetry && !$("#playerInput").value.trim());
   // The label is unchanged on desktop; phones show only the glyph, so the
   // label also becomes the button's accessible name.
   const sendLabel = narrationBusy ? "Generating…" : live ? "Send to NovelAI ➜" : "Add to story ➜";
@@ -355,7 +373,14 @@ function renderNarrationState() {
   $("#sendButton .send-glyph").textContent = narrationBusy ? "…" : "➜";
   $("#sendButton").setAttribute("aria-label", sendLabel.replace(" ➜", ""));
   $("#passButton").disabled = true;
-  $("#playerInput").disabled = !state || narrationBusy;
+  $("#playerInput").disabled = !state || narrationBusy || personaBusy;
+  const personaBlocker=personaTurnBlocker(state);
+  $("#personaAIButton").disabled = !isGuest || !!personaBlocker || narrationBusy || personaBusy;
+  $("#personaAIButton").title = !isGuest ? "Persona AI requires the native Ember guest provider; the Orbis bridge is not supported yet." : personaBlocker || "Let your V2 persona propose one editable player turn.";
+  const previewCurrent = personaPreview && state && personaPreview.storyId===state.id && personaPreview.revision===state.revision && personaPreview.personaId===state.assetSetup?.personaId;
+  $("#personaAccept").disabled = !previewCurrent || narrationBusy || personaBusy || !$("#personaDraft").value.trim();
+  $("#personaRegenerate").disabled = narrationBusy || personaBusy;
+  $("#personaDraft").disabled = narrationBusy || personaBusy;
   $("#composeHint").textContent = !live
     ? "Offline preview: saves your words but cannot generate narration."
     : narrationBusy ? "NovelAI is writing the next moment…"
@@ -391,12 +416,12 @@ function renderNarrationState() {
   }
   $(".story-column").classList.toggle("has-feedback", narrationBusy || !$("#narrationError").hidden);
 }
-async function compileGuestHistory(snapshot,requestedLength=generationLength) {
+async function compileGuestHistory(snapshot,requestedLength=generationLength,task="narration") {
   const bindings=await getStoryAssets(liveSession.userId,snapshot.id);
   const ids=[...new Set([...bindings.filter(b=>b.enabled!==false).map(b=>b.id),
     snapshot.assetSetup?.personaId].filter(Boolean))];
   const assets=(await Promise.all(ids.map(id=>getLocalAsset(liveSession.userId,id)))).filter(Boolean);
-  return compileEmberContext({story:snapshot,assets,bindings,generationLength:requestedLength});
+  return compileEmberContext({story:snapshot,assets,bindings,generationLength:requestedLength,task});
 }
 function recordContextCoverage(compiled,storyId) {
   latestContextCoverage={
@@ -470,6 +495,96 @@ async function generateLastTurn(replaceReplyId=null) {
     renderNarrationState();
   }
 }
+// Persona AI never changes story history until its preview is explicitly accepted.
+let personaRequestToken = 0;
+function personaSceneCurrent(preview) {
+  return Boolean(preview && state && state.id===preview.storyId
+    && state.revision===preview.revision
+    && state.assetSetup?.personaId===preview.personaId);
+}
+async function generatePersonaDraft() {
+  if(!isGuest || !state || personaBusy || narrationBusy) return;
+  const blocker=personaTurnBlocker(state);
+  if(blocker) { toast(blocker);return; }
+  if($("#playerInput").value.trim()) {
+    toast("Send or clear your own unsent draft before asking Persona AI.");
+    return;
+  }
+  const snapshot=state;
+  const reference={storyId:snapshot.id,revision:snapshot.revision,personaId:snapshot.assetSetup.personaId};
+  const token=++personaRequestToken;
+  personaBusy=true;
+  personaPreview=null;
+  $("#personaDraft").value="";
+  $("#personaDraftError").textContent="Writing a character-driven turn…";
+  if(!$("#personaDialog").open) openDialog("#personaDialog");
+  renderNarrationState();
+  try {
+    const compiled=await compileGuestHistory(snapshot,generationLength,"persona");
+    if(!state || state.id!==reference.storyId || state.revision!==reference.revision
+      || state.assetSetup?.personaId!==reference.personaId || token!==personaRequestToken)
+      return;
+    recordContextCoverage(compiled,snapshot.id);
+    const response=await fetch("/ember/api/guest/generate",{
+      method:"POST",credentials:"same-origin",cache:"no-store",
+      headers:{"Content-Type":"application/json","X-Ember-Request":"generation"},
+      body:JSON.stringify({task:"persona",prompt:compiled.prompt,length:generationLength}),
+    });
+    let result={};
+    try {result=await response.json();} catch { /* gateway returned non-JSON */ }
+    if(!response.ok || typeof result.text!=="string")
+      throw new Error(result.error || "Persona AI could not generate a player turn.");
+    if(token!==personaRequestToken || !state || state.id!==reference.storyId
+      || state.revision!==reference.revision || state.assetSetup?.personaId!==reference.personaId)
+      return;
+    const text=cleanPersonaDraft(result.text);
+    personaPreview={...reference,text};
+    $("#personaDraft").value=text;
+    $("#personaDraftError").textContent="";
+  } catch(err) {
+    if(token===personaRequestToken && $("#personaDialog").open)
+      $("#personaDraftError").textContent=err instanceof Error ? err.message : "Persona AI could not write a turn.";
+  } finally {
+    personaBusy=false;
+    renderNarrationState();
+  }
+}
+$("#personaAIButton").addEventListener("click",()=>void generatePersonaDraft());
+$("#personaRegenerate").addEventListener("click",()=>void generatePersonaDraft());
+$("#personaDraft").addEventListener("input",renderNarrationState);
+function closePersonaDraft() {
+  ++personaRequestToken;
+  personaPreview=null;
+  if($("#personaDialog").open) $("#personaDialog").close();
+  renderNarrationState();
+}
+$("#personaCancel").addEventListener("click",closePersonaDraft);
+$("#personaClose").addEventListener("click",closePersonaDraft);
+$("#personaDialog").addEventListener("close",()=>{
+  ++personaRequestToken;
+  personaPreview=null;
+  renderNarrationState();
+});
+$("#personaAccept").addEventListener("click",()=>{
+  if(!personaSceneCurrent(personaPreview) || narrationBusy || personaBusy) {
+    toast("The scene changed. Generate a fresh persona turn.");
+    return;
+  }
+  try {
+    const text=cleanPersonaDraft($("#personaDraft").value);
+    const next=addPlayerTurn(state,"action",text);
+    ++personaRequestToken;
+    personaPreview=null;
+    $("#personaDialog").close();
+    narrationError="";
+    setStory(next);
+    $("#storyScroll").scrollTop=$("#storyScroll").scrollHeight;
+    if(liveSession) void generateLastTurn();
+  } catch(err) {
+    $("#personaDraftError").textContent=err instanceof Error ? err.message : "Unable to accept the persona turn.";
+  }
+});
+
 // Render only DOM text nodes. Character cards and provider prose are never trusted HTML.
 function renderStoryProse(container,text,narratorName="") {
   for (const paragraph of segmentStoryText(text,{narratorName})) {
@@ -496,7 +611,7 @@ function renderStoryProse(container,text,narratorName="") {
 }
 function render() {
   const disabled = !state;
-  $("#waitButton").disabled = disabled || narrationBusy;
+  $("#waitButton").disabled = disabled || narrationBusy || personaBusy;
   $("#worldName").textContent = state?.world.name ?? "Unreadable save";
   $("#locationName").textContent = state?.world.location ?? "Local story could not be restored";
   $("#clock").textContent = state ? formatClock(state.world) : "Time unavailable";
@@ -687,7 +802,7 @@ $("#codaSkip").addEventListener("click", () => {
 });
 
 $("#sendButton").addEventListener("click", () => {
-  if (!state || narrationBusy) return;
+  if (!state || narrationBusy || personaBusy) return;
   try {
     const next = addPlayerTurn(state, "action", $("#playerInput").value);
     narrationError = "";
@@ -1016,7 +1131,7 @@ $("#newButton").addEventListener("click", () => {
   const warning = loadError
     ? "The current browser save is unreadable. A new story will overwrite it. Continue only if you no longer need to recover that data."
     : "Create a new story? Export the current story first if you want to keep it.";
-  if (narrationBusy) { toast("Wait until NovelAI finishes before starting another story."); return; }
+  if (narrationBusy || personaBusy) { toast("Wait for AI generation to finish before starting another story."); return; }
   if (!window.confirm(warning)) return;
   try {
     const fresh = liveSession ? createStoryFromLaunch(liveSession) : createStory();
@@ -1046,7 +1161,7 @@ document.addEventListener("keydown", event => { if (event.key === "Escape") { cl
 const assetLibrary = mountAssetLibrary({
   root, owner: () => liveSession?.userId ?? "local", getStory: () => state,
   onSelectPersona: async asset => {
-    if (narrationBusy) throw new Error("Wait until generation finishes before switching personas.");
+    if (narrationBusy || personaBusy) throw new Error("Wait until generation finishes before switching personas.");
     if (!state) throw new Error("Open a story before choosing a persona.");
     if (asset && asset.kind!=="character") throw new Error("Personas must be Character Card V2 files.");
     if (asset && state.assetSetup?.characterId===asset.id)
@@ -1057,7 +1172,7 @@ const assetLibrary = mountAssetLibrary({
     return true;
   },
   onStartCharacter: async (asset, openingIndex) => {
-    if (narrationBusy) { toast("Wait for narration to finish before changing stories."); return false; }
+    if (narrationBusy || personaBusy) { toast("Wait for AI generation to finish before changing stories."); return false; }
     if (!window.confirm("Start a new story with this character? Export your current story first if you want to keep it.")) return false;
     const fresh = liveSession ? createStoryFromLaunch(liveSession) : createStory();
     const message = [asset.fields.firstMessage, ...asset.fields.alternateGreetings][openingIndex] || "";
@@ -1076,7 +1191,7 @@ const assetLibrary = mountAssetLibrary({
 });
 $("#storyTurns").addEventListener("click",event=>{
   const button=event.target.closest("button[data-reply-action]");
-  if (!button || narrationBusy || !state) return;
+  if (!button || narrationBusy || personaBusy || !state) return;
   const turn=state.turns.find(item=>item.id===button.dataset.replyId
     && (item.source==="provider" || item.source==="player"));
   if (!turn) return;
