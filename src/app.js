@@ -495,6 +495,96 @@ async function generateLastTurn(replaceReplyId=null) {
     renderNarrationState();
   }
 }
+// Persona AI never changes story history until its preview is explicitly accepted.
+let personaRequestToken = 0;
+function personaSceneCurrent(preview) {
+  return Boolean(preview && state && state.id===preview.storyId
+    && state.revision===preview.revision
+    && state.assetSetup?.personaId===preview.personaId);
+}
+async function generatePersonaDraft() {
+  if(!isGuest || !state || personaBusy || narrationBusy) return;
+  const blocker=personaTurnBlocker(state);
+  if(blocker) { toast(blocker);return; }
+  if($("#playerInput").value.trim()) {
+    toast("Send or clear your own unsent draft before asking Persona AI.");
+    return;
+  }
+  const snapshot=state;
+  const reference={storyId:snapshot.id,revision:snapshot.revision,personaId:snapshot.assetSetup.personaId};
+  const token=++personaRequestToken;
+  personaBusy=true;
+  personaPreview=null;
+  $("#personaDraft").value="";
+  $("#personaDraftError").textContent="Writing a character-driven turn…";
+  if(!$("#personaDialog").open) openDialog("#personaDialog");
+  renderNarrationState();
+  try {
+    const compiled=await compileGuestHistory(snapshot,generationLength,"persona");
+    if(!state || state.id!==reference.storyId || state.revision!==reference.revision
+      || state.assetSetup?.personaId!==reference.personaId || token!==personaRequestToken)
+      return;
+    recordContextCoverage(compiled,snapshot.id);
+    const response=await fetch("/ember/api/guest/generate",{
+      method:"POST",credentials:"same-origin",cache:"no-store",
+      headers:{"Content-Type":"application/json","X-Ember-Request":"generation"},
+      body:JSON.stringify({task:"persona",prompt:compiled.prompt,length:generationLength}),
+    });
+    let result={};
+    try {result=await response.json();} catch { /* gateway returned non-JSON */ }
+    if(!response.ok || typeof result.text!=="string")
+      throw new Error(result.error || "Persona AI could not generate a player turn.");
+    if(token!==personaRequestToken || !state || state.id!==reference.storyId
+      || state.revision!==reference.revision || state.assetSetup?.personaId!==reference.personaId)
+      return;
+    const text=cleanPersonaDraft(result.text);
+    personaPreview={...reference,text};
+    $("#personaDraft").value=text;
+    $("#personaDraftError").textContent="";
+  } catch(err) {
+    if(token===personaRequestToken && $("#personaDialog").open)
+      $("#personaDraftError").textContent=err instanceof Error ? err.message : "Persona AI could not write a turn.";
+  } finally {
+    personaBusy=false;
+    renderNarrationState();
+  }
+}
+$("#personaAIButton").addEventListener("click",()=>void generatePersonaDraft());
+$("#personaRegenerate").addEventListener("click",()=>void generatePersonaDraft());
+$("#personaDraft").addEventListener("input",renderNarrationState);
+function closePersonaDraft() {
+  ++personaRequestToken;
+  personaPreview=null;
+  if($("#personaDialog").open) $("#personaDialog").close();
+  renderNarrationState();
+}
+$("#personaCancel").addEventListener("click",closePersonaDraft);
+$("#personaClose").addEventListener("click",closePersonaDraft);
+$("#personaDialog").addEventListener("close",()=>{
+  ++personaRequestToken;
+  personaPreview=null;
+  renderNarrationState();
+});
+$("#personaAccept").addEventListener("click",()=>{
+  if(!personaSceneCurrent(personaPreview) || narrationBusy || personaBusy) {
+    toast("The scene changed. Generate a fresh persona turn.");
+    return;
+  }
+  try {
+    const text=cleanPersonaDraft($("#personaDraft").value);
+    const next=addPlayerTurn(state,"action",text);
+    ++personaRequestToken;
+    personaPreview=null;
+    $("#personaDialog").close();
+    narrationError="";
+    setStory(next);
+    $("#storyScroll").scrollTop=$("#storyScroll").scrollHeight;
+    if(liveSession) void generateLastTurn();
+  } catch(err) {
+    $("#personaDraftError").textContent=err instanceof Error ? err.message : "Unable to accept the persona turn.";
+  }
+});
+
 // Render only DOM text nodes. Character cards and provider prose are never trusted HTML.
 function renderStoryProse(container,text,narratorName="") {
   for (const paragraph of segmentStoryText(text,{narratorName})) {
