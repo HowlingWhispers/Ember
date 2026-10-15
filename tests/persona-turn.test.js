@@ -38,7 +38,12 @@ test("one persona AI turn uses the player V2, recent narration and independent d
   assert.match(result.prompt,/independent, character-driven choice/i);
   assert.match(result.prompt,/MOST RECENT NARRATOR/);
   assert.match(result.prompt,/do not repeat explanations/i);
-  assert.match(result.prompt,/do not invent background facts/i);
+  assert.match(result.prompt,/You may improvise the persona/);
+  assert.match(result.prompt,/REQUIRED PERSPECTIVE:.*FIRST PERSON/);
+  assert.match(result.prompt,/I, me, my, mine/);
+  assert.match(result.prompt,/NEVER describe the PLAYER PERSONA as she\/her, he\/him, they\/them/);
+  assert.match(result.prompt,/\*I look up at Heather, my ears twitching\.\*/);
+  assert.match(result.prompt,/Third-person pronouns are allowed when clearly referring to OTHER characters/);
   assert.match(result.prompt,/Close every action/i);
   assert.equal(personaNameFromPrompt(result.prompt),"Arrax Shadowfang");
   assert.equal(PERSONA_TURN_LENGTH.maxWords,95);
@@ -73,6 +78,7 @@ test("existing narrator pipeline remains the default and needs a player turn",()
   const result=compileEmberContext({story,assets:[persona,npc],bindings});
   assert.equal(result.task,"narration");
   assert.match(result.prompt,/\nNARRATOR:$/);
+  assert.doesNotMatch(result.prompt,/REQUIRED PERSPECTIVE/);
 });
 
 test("AI drafts stay unsaved until accepted by the normal player-turn engine",()=>{
@@ -133,4 +139,22 @@ test("single-turn cleanup keeps fully closed speech and actions and rejects miss
   assert.equal(normalizePersonaDraft('"I understand." (I think',{}).text,'"I understand."');
   assert.throws(()=>cleanPersonaDraft('*I whisper an unfinished line'),/unfinished turn/);
   assert.equal(cleanPersonaDraft('\x60\x60\x60text\n*I nod.*\n\x60\x60\x60'),'*I nod.*');
+});
+
+test("Persona AI uses first-person viewpoint without changing references to other characters",()=>{
+  const luna=asset("luna-v2","Luna","Shy but willing to speak up for herself.");
+  const heather=asset("heather-v2","Heather","Protective ranger.");
+  const story={...base,assetSetup:{personaId:"luna-v2",characterId:"heather-v2"},turns:[
+    {source:"player",mode:"speech",text:'"I didn\u0027t mean to cause trouble."'},
+    {source:"provider",mode:"narrator",text:'Heather unlocks the cell. "What\u0027s your name?"'},
+  ]};
+  const compiled=compileEmberContext({story,assets:[luna,heather],
+    bindings:[{id:"heather-v2",enabled:true}],task:"persona"});
+  assert.match(compiled.prompt,/FIRST PERSON for the entire turn/);
+  assert.match(compiled.prompt,/This rule is the same for every persona/);
+  assert.match(compiled.prompt,/Do not imitate their perspective/);
+  assert.match(compiled.prompt,/Example: \*I look up at Heather, my ears twitching\.\* "I'm Luna," \*I say quietly\.\*/);
+  // Third-person pronouns for NPCs are still valid. Do not blanket-replace "she".
+  const good='*I look at Heather as she steps away.* "I\u0027m Luna," *I say.*';
+  assert.equal(cleanPersonaDraft(good,{personaName:"Luna"}),good);
 });
