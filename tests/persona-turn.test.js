@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { importEmberAsset } from "../src/asset-import.js";
 import { compileEmberContext } from "../src/context-compiler.js";
-import { cleanPersonaDraft, personaTurnBlocker } from "../src/persona-turn.js";
+import { cleanPersonaDraft,personaTurnBlocker,normalizePersonaDraft,personaNameFromPrompt } from "../src/persona-turn.js";
+import { PERSONA_TURN_LENGTH } from "../src/reply-length.js";
 import { addPlayerTurn } from "../src/engine.js";
 
 const v2 = (name,personality) => ({spec:"chara_card_v2",spec_version:"2.0",data:{
@@ -34,8 +35,14 @@ test("one persona AI turn uses the player V2, recent narration and independent d
   assert.match(result.prompt,/Independent, wary, protective and stubborn/);
   assert.match(result.prompt,/Rainier folds his arms/);
   assert.match(result.prompt,/Rainier was insulted at dinner/);
-  assert.match(result.prompt,/independent, character-driven decision/i);
-  assert.match(result.prompt,/\nPLAYER:$/);
+  assert.match(result.prompt,/independent, character-driven choice/i);
+  assert.match(result.prompt,/MOST RECENT NARRATOR/);
+  assert.match(result.prompt,/do not repeat explanations/i);
+  assert.match(result.prompt,/do not invent background facts/i);
+  assert.match(result.prompt,/Close every action/i);
+  assert.equal(personaNameFromPrompt(result.prompt),"Arrax Shadowfang");
+  assert.equal(PERSONA_TURN_LENGTH.maxWords,95);
+  assert.match(result.prompt,/\nPLAYER:\n$/);
   assert.doesNotMatch(result.prompt,/\nNARRATOR:$/);
   assert.ok(result.historyTurnsIncluded >= 1);
 });
@@ -45,7 +52,7 @@ test("persona AI starts from a character card's preview opening",()=>{
   const result=compileEmberContext({story:first,assets:[persona,npc],bindings,task:"persona"});
   assert.match(result.prompt,/OPENING:\n/);
   assert.match(result.prompt,/innkeeper smiles/);
-  assert.match(result.prompt,/\nPLAYER:$/);
+  assert.match(result.prompt,/\nPLAYER:\n$/);
 });
 
 test("persona AI requires selected V2 identity and a completed narrator or opening turn",()=>{
@@ -86,4 +93,44 @@ test("persona output cannot smuggle additional narrator or system turns",()=>{
   assert.throws(()=>cleanPersonaDraft("PLAYER:\nNARRATOR: Not my turn."),/between 1 and 8,000/);
   assert.throws(()=>cleanPersonaDraft("x".repeat(8001)),/between 1 and 8,000/);
   assert.throws(()=>cleanPersonaDraft("x".repeat(32001)),/invalid draft/);
+});
+
+test("Luna at the ranger station: preview strips heading and unfinished private thought",()=>{
+  const raw=[
+    "Luna",
+    "*Luna's ears twitch nervously and she wrings her hands, her tail tucking between her legs.*",
+    '"My name’s Luna... I didn’t mean to cause trouble."',
+    '*Her ears perk up hopefully.* "You’re not gonna eat me, are you?"',
+    "(She seems nice.",
+  ].join("\n");
+  const result=normalizePersonaDraft(raw,{personaName:"Luna"});
+  assert.equal(result.shortened,true);
+  assert.ok(result.text.startsWith("*Luna's ears"));
+  assert.ok(result.text.endsWith('are you?"'));
+  assert.doesNotMatch(result.text,/^Luna\s*$/mu);
+  assert.doesNotMatch(result.text,/She seems nice/);
+});
+
+test("persona turn reacts to last Heather question and earlier Luna explanation remains visible",()=>{
+  const story={...base,turns:[
+    {source:"preview",mode:"narrator",text:'Heather calls Luna a troublemaker.'},
+    {source:"player",mode:"speech",text:'"I didn’t mean to pee on the floor. Those boys kept hogging the restroom."'},
+    {source:"provider",mode:"narrator",text:'Heather unlocks the cell and asks gently, "What’s your name, sweetheart?"'},
+  ]};
+  const p=compileEmberContext({story,assets:[persona,npc],bindings,task:"persona"}).prompt;
+  assert.ok(p.indexOf("Those boys kept hogging")<p.indexOf("What’s your name"));
+  assert.match(p,/React directly to the MOST RECENT NARRATOR turn first/);
+  assert.match(p,/do not repeat explanations, introductions/);
+  assert.match(p,/Never start with the persona name on its own line/);
+});
+
+test("single-turn cleanup keeps fully closed speech and actions and rejects missing endings",()=>{
+  assert.equal(cleanPersonaDraft('Luna\n*I glance away.* "My name is Luna."', {personaName:"Luna"}),
+    '*I glance away.* "My name is Luna."');
+  assert.equal(cleanPersonaDraft('Luna: *I nod.* "Yes."', {personaName:"Luna"}),
+    '*I nod.* "Yes."');
+  assert.equal(cleanPersonaDraft('PLAYER:\n"I don’t know."\nNARRATOR: Heather speaks.'),'"I don’t know."');
+  assert.equal(normalizePersonaDraft('"I understand." (I think',{}).text,'"I understand."');
+  assert.throws(()=>cleanPersonaDraft('*I whisper an unfinished line'),/unfinished turn/);
+  assert.equal(cleanPersonaDraft('\x60\x60\x60text\n*I nod.*\n\x60\x60\x60'),'*I nod.*');
 });
