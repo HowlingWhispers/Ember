@@ -39,7 +39,7 @@ export function normalizePersonaDraft(raw,{personaName=""}={}) {
   if (typeof raw!=="string" || raw.length>32000)
     throw new Error("Persona AI returned an invalid draft.");
   const original=raw.trim();
-  let text=original.replace(/^`\`\`\`(?:text|markdown)?\s*\n?/iu,"").replace(/\n?`\`\`\`$/u,"").trim();
+  let text=original.replace(/^\x60{3}(?:text|markdown)?\s*\n?/iu,"").replace(/\n?\x60{3}$/u,"").trim();
   if (/^(?:NARRATOR|ASSISTANT|SYSTEM|OPENING|CHARACTER)\s*:/iu.test(text))
     throw new Error("Persona AI wrote a narrator turn instead of a player turn. Regenerate it.");
   text=text.replace(/^(?:PLAYER|YOU)\s*:\s*/iu,"").trim();
