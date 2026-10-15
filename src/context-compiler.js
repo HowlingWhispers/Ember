@@ -150,7 +150,9 @@ function fitReference(name,fields,allowance) {
   throw new Error("The V2 character or persona needs more space than Ember's context budget permits.");
 }
 
-export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_CONTEXT_LIMIT,maxLoreTokens=3200,generationLength=DEFAULT_REPLY_LENGTH}={}) {
+export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_CONTEXT_LIMIT,maxLoreTokens=3200,generationLength=DEFAULT_REPLY_LENGTH,task="narration"}={}) {
+  if(!["narration","persona"].includes(task)) throw new Error("Unknown Ember generation task.");
+  const personaTurn=task==="persona";
   if (!story || typeof story !== "object" || !Array.isArray(story.turns)
     || !Array.isArray(bindings) || bindings.length > 100) throw new Error("Invalid Ember story context.");
   if (!Number.isInteger(maxChars) || maxChars < 3000 || maxChars > 50000)
@@ -159,6 +161,7 @@ export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_
     throw new Error("Invalid story memory.");
   const normalized=normalizeAssets(assets);
   const persona=playerPersona(normalized,story);
+  if(personaTurn && !persona) throw new Error("Choose a V2 player persona before using Persona AI.");
   if(persona && bindings.some(b=>b.id===persona.id && b.enabled!==false))
     throw new Error("Player persona is also attached as an NPC. Disable its NPC attachment before generating.");
   const character=primaryCharacter(normalized,bindings,story);
@@ -169,8 +172,8 @@ export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_
   const allTurns=story.turns.filter(safeTurn);
   // Prompt length, not an arbitrary two-generation window, determines recall.
   const turns=allTurns.slice(-200);
-  if(turns.at(-1)?.source!=="player")
-    throw new Error("The latest turn must be from the player.");
+  if(personaTurn ? !["provider","preview"].includes(turns.at(-1)?.source) : turns.at(-1)?.source!=="player")
+    throw new Error(personaTurn ? "Finish the narrator response before generating a persona turn." : "The latest turn must be from the player.");
   const loreBooks=collectBooks(normalized,bindings,character,persona);
   const lore=activateLorebooks(loreBooks,turns,Math.max(0,Math.min(maxLoreTokens,8000)));
   const warnings=[];
@@ -183,7 +186,9 @@ export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_
   const header=[
     "EMBER / FREEFORM ROLEPLAY",
     "Write in English, continuing the current fictional scene faithfully.",
-    "The player controls their own dialogue, thoughts, decisions and actions. Narrate NPCs and the environment.",
+    personaTurn
+      ? "You temporarily control ONLY the selected PLAYER PERSONA for one turn. The narrator controls NPCs, environment and consequences."
+      : "The player controls their own dialogue, thoughts, decisions and actions. Narrate NPCs and the environment.",
     "PLAYER PERSONA is the human-controlled protagonist. CHARACTER CARD V2 is the primary NPC.",
     "Maintain established events, unresolved disputes, motivations and distinct character personalities.",
     "Let NPCs act with initiative rooted in their goals while preserving the player's agency.",
@@ -195,7 +200,16 @@ export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_
   const historyLabel="\n\n[RECENT STORY TRANSCRIPT]\n";
   // Keep a short instruction immediately before the requested continuation,
   // so the model sees voice, response length and format after the history.
-  const replyStyle=[
+  const replyStyle=personaTurn ? [
+    "[REPLY STYLE]",
+    "Write ONE proposed PLAYER turn, as the selected PLAYER PERSONA V2. Do not act as narrator or NPC.",
+    "Make an independent, character-driven decision that fits the persona, current scene and established continuity.",
+    "Use *asterisks* for actions, double quotes for spoken dialogue, and (parentheses) for private thoughts.",
+    "React to NPCs but never write their words, reactions or outcomes. Do not invent new world facts.",
+    "Write only the persona\u0027s action, speech and thoughts. No role labels, explanations, headings or author notes.",
+    "Make a complete, naturally paced turn of at most "+preset.maxWords+" words.",
+    "[END REPLY STYLE]",
+  ].join("\n") : [
     "[REPLY STYLE]",
     "Continue naturally from the latest PLAYER turn as NARRATOR.",
     "Use the main character's established personality and speech patterns.",
@@ -210,7 +224,7 @@ export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_
   // Voice examples are included only when budget allows, before final style
   // guidance. This copies original NPC dialogue without altering the V2 card.
   const voiceTail=voiceBlock ? "\n"+voiceBlock : "";
-  const end="\n[END TRANSCRIPT]"+voiceTail+"\n"+replyStyle+"\nNARRATOR:";
+  const end="\n[END TRANSCRIPT]"+(personaTurn ? "" : voiceTail)+"\n"+replyStyle+(personaTurn ? "\nPLAYER:" : "\nNARRATOR:");
   // Reserve 40% of the entire prompt for dialogue before fitting verbose cards.
   // Keep this proportional for deliberately small test/story budgets.
   const reservedHistory=Math.max(850,Math.min(8500,Math.floor(maxChars*.40)));
@@ -261,7 +275,8 @@ export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_
 
   const historyBudget=maxChars-intro.length-historyLabel.length-end.length;
   let history=recentEntries(turns,historyBudget);
-  if(!history.length || !history.at(-1)?.content.startsWith("PLAYER:\n"))
+  const latestRole=personaTurn ? (turns.at(-1)?.source==="preview" ? "OPENING:\n" : "NARRATOR:\n") : "PLAYER:\n";
+  if(!history.length || !history.at(-1)?.content.startsWith(latestRole))
     throw new Error("The latest player message does not fit Ember's context budget.");
   // Preserve the earliest opening excerpt even after older turns fall out of
   // the rolling history. It is a direct quote, never a synthetic summary.
@@ -272,7 +287,7 @@ export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_
     const candidate="\n\n[EARLIER SCENE OPENING (EXCERPT)]\n"+indentFiction(excerpt)+"\n[END OPENING EXCERPT]";
     if(candidate.length<Math.floor(historyBudget*.18) && historyBudget-candidate.length>850){
       const reduced=recentEntries(turns,historyBudget-candidate.length);
-      if(reduced.length && reduced.at(-1)?.content.startsWith("PLAYER:\n")){
+      if(reduced.length && reduced.at(-1)?.content.startsWith(latestRole)){
         history=reduced;earlyBlock=candidate;
       }
     }
@@ -283,7 +298,7 @@ export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_
   const prompt=intro+earlyBlock+historyLabel+history.map(x=>x.content).join("\n\n")+end;
   if(prompt.length>maxChars)throw new Error("Ember context budget exceeded.");
   return {
-    prompt,characterId:character?.id??null,personaId:persona?.id??null,
+    prompt,task,characterId:character?.id??null,personaId:persona?.id??null,
     selectedGreeting:open,
     activeLoreEntries:appliedLore.map(e=>({bookId:e.bookId,entryId:e.entryId,reason:e.reason})),
     diagnostics:lore.diagnostics,warnings,
