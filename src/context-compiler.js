@@ -76,7 +76,8 @@ function collectBooks(assets,bindings,character,persona) {
   }
   for (const asset of assets) {
     if (asset.kind === "lorebook" && bindings.some(b => b.id === asset.id && b.enabled !== false)) {
-      books.push({id:asset.id,fields:asset.fields});
+      const link=bindings.find(b=>b.id===asset.id);
+      books.push({id:asset.id,fields:asset.fields,original:asset.original,entryOverrides:link?.entryOverrides||{}});
     }
   }
   return books;
