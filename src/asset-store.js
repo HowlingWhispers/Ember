@@ -1,3 +1,4 @@
+import {normalizeEntryOverrides} from "./lore-overrides.js";
 // Ember-only, browser-local asset database. No network calls or Orbis lookups.
 const DB_NAME = "hw-ember-library";
 const VERSION = 1;
@@ -86,7 +87,11 @@ export async function setStoryAssets(owner,storyId,items) {
     const asset = await getLocalAsset(owner,item.id);
     if (!asset) throw new Error("Selected asset was not found in your library.");
     if (valid.some(a=>a.id === item.id)) continue;
-    valid.push({id:item.id,enabled:item.enabled !== false,greeting:Math.max(0,Math.trunc(item.greeting || 0))});
+    valid.push({id:item.id,enabled:item.enabled !== false,
+      greeting:Math.max(0,Math.trunc(item.greeting || 0)),
+      ...(asset.kind==="lorebook" ? {entryOverrides:normalizeEntryOverrides(
+        item.entryOverrides,asset.fields.entries.map(e=>e.sourceId))} : {}),
+    });
   }
   await requestResult("attachments","readwrite",s=>s.put({key:bindingKey(owner,storyId),assets:valid}));
   return valid;
