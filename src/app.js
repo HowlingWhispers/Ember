@@ -13,6 +13,7 @@ import { segmentStoryText, storyCharacterHeading } from "./story-format.js";
 import { exportSanitizedStory } from "./story-share.js";
 import {detectPlayerAgency} from "./player-agency.js";
 import {personaTurnBlocker,cleanPersonaDraft} from "./persona-turn.js";
+import {PERSONA_FLAVORS,PERSONA_DECISIONS,PERSONA_DIRECTIONS,PERSONA_CREATIVITY,normalizePersonaOptions,resolvePersonaFlavor,rememberRejectedDrafts} from "./persona-options.js";
 
 const root = document.querySelector("#app");
 const liveSession = globalThis.__EMBER_SESSION__ ?? null;
@@ -38,6 +39,12 @@ let narrationBusy = false;
 let narrationError = "";
 let personaBusy = false;
 let personaPreview = null;
+let personaHistoryScope = "";
+let personaRejected = [];
+let personaLastFlavor = "";
+let personaOptions;
+try { personaOptions=normalizePersonaOptions(JSON.parse(getPreference("personaTurnOptions","{}"))); }
+catch { personaOptions=normalizePersonaOptions(); }
 let generationLength=replyLengthOrDefault(getPreference("replyLength",DEFAULT_REPLY_LENGTH));
 let latestContextCoverage = null;
 let activeCardName = {storyId:null,characterId:null,name:""};
@@ -183,14 +190,40 @@ root.innerHTML = `
   <dialog id="personaDialog" aria-labelledby="personaHeading">
     <div class="sheet">
       <div class="sheet-heading"><h2 id="personaHeading">✧ Persona AI turn</h2><button id="personaClose" class="quiet" type="button" aria-label="Close persona draft">✕</button></div>
-      <p class="setting-label">An independent, character-driven player turn. Nothing is submitted until you approve.</p>
-      <label for="personaDraft" class="setting-label">Review or edit your proposed turn</label>
+      <p class="persona-intro">One player turn at a time. Nothing is sent until you approve.</p>
+      <label for="personaFlavor" class="setting-label">Turn flavor</label>
+      <select id="personaFlavor" class="persona-choice">
+        ${PERSONA_FLAVORS.map(item=>`<option value="${safe(item.value)}">${safe(item.label)}</option>`).join("")}
+      </select>
+      <details id="personaExtraSettings" class="persona-settings">
+        <summary>Decision style, creativity and direction</summary>
+        <div class="persona-settings-grid">
+          <label for="personaDecision">Decision style
+            <select id="personaDecision" class="persona-choice">
+              ${PERSONA_DECISIONS.map(item=>`<option value="${safe(item.value)}">${safe(item.label)}</option>`).join("")}
+            </select>
+          </label>
+          <label for="personaCreativity">Creativity
+            <select id="personaCreativity" class="persona-choice">
+              ${PERSONA_CREATIVITY.map(item=>`<option value="${safe(item.value)}">${safe(item.label)}</option>`).join("")}
+            </select>
+          </label>
+          <label for="personaDirection">Turn direction
+            <select id="personaDirection" class="persona-choice">
+              ${PERSONA_DIRECTIONS.map(item=>`<option value="${safe(item.value)}">${safe(item.label)}</option>`).join("")}
+            </select>
+          </label>
+        </div>
+        <label class="persona-repeat-label"><input type="checkbox" id="personaAvoidRepeats"> Avoid repeating rejected turns</label>
+      </details>
+      <label for="personaDraft" class="setting-label">Review or edit the proposed turn</label>
       <textarea id="personaDraft" rows="7" maxlength="${MAX_INPUT}" placeholder="Your persona's proposed action, speech or thoughts"></textarea>
       <p id="personaDraftNotice" role="status" aria-live="polite"></p>
       <p id="personaDraftError" role="alert" aria-live="polite"></p>
       <div class="sheet-foot">
         <button type="button" id="personaCancel" class="quiet">Cancel</button>
-        <button type="button" id="personaRegenerate" class="chip-button">↻ Regenerate</button>
+        <button type="button" id="personaRegenerate" class="chip-button" title="Keep the decision but rewrite its words">↻ Rewrite</button>
+        <button type="button" id="personaDifferent" class="chip-button" title="Make a materially different choice">⤨ Different approach</button>
         <button type="button" id="personaAccept" class="primary">Accept &amp; send</button>
       </div>
     </div>
@@ -380,7 +413,8 @@ function renderNarrationState() {
   $("#personaAIButton").title = !isGuest ? "Persona AI requires the native Ember guest provider; the Orbis bridge is not supported yet." : personaBlocker || "Let your V2 persona propose one editable player turn.";
   const previewCurrent = personaPreview && state && personaPreview.storyId===state.id && personaPreview.revision===state.revision && personaPreview.personaId===state.assetSetup?.personaId;
   $("#personaAccept").disabled = !previewCurrent || narrationBusy || personaBusy || !$("#personaDraft").value.trim();
-  $("#personaRegenerate").disabled = narrationBusy || personaBusy;
+  $("#personaRegenerate").disabled = narrationBusy || personaBusy || !previewCurrent;
+  $("#personaDifferent").disabled = narrationBusy || personaBusy || !previewCurrent;
   $("#personaDraft").disabled = narrationBusy || personaBusy;
   $("#composeHint").textContent = !live
     ? "Offline preview: saves your words but cannot generate narration."
@@ -417,12 +451,13 @@ function renderNarrationState() {
   }
   $(".story-column").classList.toggle("has-feedback", narrationBusy || !$("#narrationError").hidden);
 }
-async function compileGuestHistory(snapshot,requestedLength=generationLength,task="narration") {
+async function compileGuestHistory(snapshot,requestedLength=generationLength,task="narration",options={},regeneration={}) {
   const bindings=await getStoryAssets(liveSession.userId,snapshot.id);
   const ids=[...new Set([...bindings.filter(b=>b.enabled!==false).map(b=>b.id),
     snapshot.assetSetup?.personaId].filter(Boolean))];
   const assets=(await Promise.all(ids.map(id=>getLocalAsset(liveSession.userId,id)))).filter(Boolean);
-  return compileEmberContext({story:snapshot,assets,bindings,generationLength:requestedLength,task});
+  return compileEmberContext({story:snapshot,assets,bindings,generationLength:requestedLength,task,
+    personaOptions:options,personaRegeneration:regeneration});
 }
 function recordContextCoverage(compiled,storyId) {
   latestContextCoverage={
