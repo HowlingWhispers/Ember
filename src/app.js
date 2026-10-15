@@ -186,7 +186,8 @@ root.innerHTML = `
       <p class="setting-label">An independent, character-driven player turn. Nothing is submitted until you approve.</p>
       <label for="personaDraft" class="setting-label">Review or edit your proposed turn</label>
       <textarea id="personaDraft" rows="7" maxlength="${MAX_INPUT}" placeholder="Your persona's proposed action, speech or thoughts"></textarea>
-      <p id="personaDraftError" class="narration-error" role="alert" aria-live="polite"></p>
+      <p id="personaDraftNotice" role="status" aria-live="polite"></p>
+      <p id="personaDraftError" role="alert" aria-live="polite"></p>
       <div class="sheet-foot">
         <button type="button" id="personaCancel" class="quiet">Cancel</button>
         <button type="button" id="personaRegenerate" class="chip-button">↻ Regenerate</button>
@@ -513,10 +514,13 @@ async function generatePersonaDraft() {
   const snapshot=state;
   const reference={storyId:snapshot.id,revision:snapshot.revision,personaId:snapshot.assetSetup.personaId};
   const token=++personaRequestToken;
+  const previous=personaSceneCurrent(personaPreview)
+    ? {...personaPreview,text:$("#personaDraft").value} : null;
   personaBusy=true;
   personaPreview=null;
-  $("#personaDraft").value="";
-  $("#personaDraftError").textContent="Writing a character-driven turn…";
+  $("#personaDraft").value=previous?.text||"";
+  $("#personaDraftError").textContent="";
+  $("#personaDraftNotice").textContent="Writing a character-driven turn…";
   if(!$("#personaDialog").open) openDialog("#personaDialog");
   renderNarrationState();
   try {
@@ -537,13 +541,22 @@ async function generatePersonaDraft() {
     if(token!==personaRequestToken || !state || state.id!==reference.storyId
       || state.revision!==reference.revision || state.assetSetup?.personaId!==reference.personaId)
       return;
-    const text=cleanPersonaDraft(result.text);
+    const text=cleanPersonaDraft(result.text,{personaName:playerPersonaName(snapshot)});
     personaPreview={...reference,text};
     $("#personaDraft").value=text;
     $("#personaDraftError").textContent="";
+    $("#personaDraftNotice").textContent=result.shortened===true
+      ? "Draft stopped at a complete point. Please review before accepting."
+      : "Review the proposed turn. Nothing has been sent yet.";
   } catch(err) {
-    if(token===personaRequestToken && $("#personaDialog").open)
+    if(token===personaRequestToken && $("#personaDialog").open) {
+      if(previous && personaSceneCurrent(previous)){
+        personaPreview=previous;
+        $("#personaDraft").value=previous.text;
+        $("#personaDraftNotice").textContent="Your previous draft is still available.";
+      }else $("#personaDraftNotice").textContent="";
       $("#personaDraftError").textContent=err instanceof Error ? err.message : "Persona AI could not write a turn.";
+    }
   } finally {
     personaBusy=false;
     renderNarrationState();
