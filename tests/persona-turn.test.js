@@ -16,6 +16,7 @@ const persona=asset("player-v2","Arrax Shadowfang","Independent, wary, protectiv
 const npc=asset("npc-v2","Rainier Vaugeois","Proud and impatient.");
 const base={
   id:"story-1",revision:7,assetSetup:{personaId:"player-v2",characterId:"npc-v2"},
+  world:{day:1,minute:480},journal:[],
   storyMemory:"Rainier was insulted at dinner, but did not expel Arrax.",
   turns:[
     {source:"player",mode:"speech",text:'"What happened to the house?"'},
