@@ -188,6 +188,33 @@ h1, h2, h3 { font-family: Georgia, "Times New Roman", serif; }
 #contextDetails { white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width:600px) { #memoryDialog .sheet { padding: 16px; } }
 
+/* Persona AI is a writing surface, not a system textarea: respect both Ember themes. */
+#personaDialog { width: min(700px,calc(100vw - 24px)); max-width: calc(100vw - 24px);
+  max-height: 92dvh; overflow-y: auto; background: var(--paper); color: var(--text); }
+#personaDialog .sheet { padding: clamp(16px,3vw,26px); }
+#personaDialog .sheet-heading h2 { font-size: clamp(21px,3vw,26px); }
+#personaDialog .setting-label { margin: 12px 0 8px; }
+#personaDraft { box-sizing: border-box; display: block; width: 100%; min-height: 200px;
+  max-height: 48dvh; padding: 14px; resize: vertical; border-radius: 9px;
+  border: 1px solid var(--border); outline-offset: 2px;
+  background: var(--paper-warm); color: var(--text);
+  font: 15px/1.65 "Segoe UI",system-ui,sans-serif; overflow-wrap: anywhere; }
+#personaDraft::placeholder { color: var(--muted); }
+#personaDraft:focus-visible { border-color: var(--gold); }
+#personaDraftNotice { color: var(--muted); font-size: 12px; line-height: 1.45; }
+#personaDraftError { color: var(--gold); font-size: 12px; line-height: 1.45;
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; }
+#personaDraftNotice:empty,#personaDraftError:empty { display: none; }
+#personaDialog .sheet-foot { gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+#personaDialog .sheet-foot button { min-height: 42px; }
+@media (max-width: 600px) {
+  #personaDialog { width: calc(100vw - 16px); max-width: calc(100vw - 16px); max-height: 94dvh; }
+  #personaDialog .sheet { padding: 16px; }
+  #personaDraft { min-height: 160px; max-height: 44dvh; font-size: 16px; }
+  #personaDialog .sheet-foot { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+  #personaAccept { grid-column: 1 / -1; }
+}
+
 /* Reserve one small feedback row so starting/ending generation never moves the composer. */
 .narration-feedback { height: 40px; flex: 0 0 40px; min-width: 0; overflow: hidden; display: flex; align-items: center; }
 .narration-status { color: var(--gold); font-size: 12px; width: 100%; }
