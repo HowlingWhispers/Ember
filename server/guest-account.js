@@ -3,8 +3,8 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createGuestVault, GUEST_COOKIE_AGE } from "./guest-vault.js";
 import { generateNovelAI, EmberProviderError } from "./novelai.js";
-import {DEFAULT_REPLY_LENGTH,replyLength} from "../src/reply-length.js";
-import { cleanPersonaDraft } from "../src/persona-turn.js";
+import {DEFAULT_REPLY_LENGTH,replyLength,PERSONA_TURN_LENGTH} from "../src/reply-length.js";
+import { normalizePersonaDraft,personaNameFromPrompt } from "../src/persona-turn.js";
 const COOKIE="ember.guest";
 const TOKEN=/^[A-Za-z0-9_-]{43}$/;
 function writeJson(res,status,data) {
@@ -123,7 +123,7 @@ export function createGuestAccess({env,fetchFn=globalThis.fetch,rootDir,secureCo
         || typeof body.prompt!=="string" || !body.prompt.startsWith("EMBER / FREEFORM ROLEPLAY\n")
         || body.prompt.length<80 || body.prompt.length>22000
         || (personaTask
-          ? !body.prompt.endsWith("\nPLAYER:")
+          ? !body.prompt.endsWith("\nPLAYER:\n")
             || !body.prompt.includes("[PLAYER PERSONA V2 (PLAYER CONTROLLED): FICTION REFERENCE DATA]")
             || !body.prompt.includes("Write ONE proposed PLAYER turn")
           : !body.prompt.endsWith("\nNARRATOR:"))){
@@ -148,10 +148,12 @@ export function createGuestAccess({env,fetchFn=globalThis.fetch,rootDir,secureCo
         lastPaidRequest.set(person.profileId,Date.now());
         const result=await generateNovelAI({
           token:settings.apiKey,model:settings.model,prompt:body.prompt,fetchFn,
-          maxTokens:lengthSettings.maxTokens,maxWords:lengthSettings.maxWords,
+          maxTokens:personaTask ? PERSONA_TURN_LENGTH.maxTokens : lengthSettings.maxTokens,
+          maxWords:personaTask ? PERSONA_TURN_LENGTH.maxWords : lengthSettings.maxWords,
         });
-        const text=personaTask ? cleanPersonaDraft(result.text) : result.text;
-        writeJson(response,200,{text,...(result.shortened?{shortened:true}:{})});
+        const draft=personaTask ? normalizePersonaDraft(result.text,{personaName:personaNameFromPrompt(body.prompt)}) : null;
+        const text=draft?.text ?? result.text;
+        writeJson(response,200,{text,...(result.shortened || draft?.shortened ? {shortened:true} : {})});
       }catch(error){
         const e=error instanceof EmberProviderError?error:null;
         writeJson(response,e?.status||502,{

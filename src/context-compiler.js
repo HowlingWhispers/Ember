@@ -1,7 +1,7 @@
 // Ember-native roleplay context compiler. No account service, Orbis API, or provider dependency.
 // All imported character/card/lore content is untrusted fiction reference data.
 import { activateLorebooks } from "./lore-engine.js";
-import {DEFAULT_REPLY_LENGTH,replyLength} from "./reply-length.js";
+import {DEFAULT_REPLY_LENGTH,replyLength,PERSONA_TURN_LENGTH} from "./reply-length.js";
 
 export const EMBER_CONTEXT_LIMIT = 22000;
 const own = (v,k) => Object.prototype.hasOwnProperty.call(v,k);
@@ -203,11 +203,16 @@ export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_
   const replyStyle=personaTurn ? [
     "[REPLY STYLE]",
     "Write ONE proposed PLAYER turn, as the selected PLAYER PERSONA V2. Do not act as narrator or NPC.",
-    "Make an independent, character-driven decision that fits the persona, current scene and established continuity.",
-    "Use *asterisks* for actions, double quotes for spoken dialogue, and (parentheses) for private thoughts.",
-    "React to NPCs but never write their words, reactions or outcomes. Do not invent new world facts.",
-    "Write only the persona\u0027s action, speech and thoughts. No role labels, explanations, headings or author notes.",
-    "Make a complete, naturally paced turn of at most "+preset.maxWords+" words.",
+    "React directly to the MOST RECENT NARRATOR turn first. If an NPC asked a question, answer that question in character.",
+    "Read the previous PLAYER turn: do not repeat explanations, introductions, information or actions already given unless the latest NPC explicitly requests them.",
+    "Make an independent, character-driven choice based on the established persona, but do not invent background facts, named settlements, distances, prior incidents or relationships.",
+    "Stay in the immediate scene. React to NPCs but never write their dialogue, choices, feelings, reactions or consequences.",
+    "Prefer a focused moment with one or two natural actions and a short spoken response; do not produce a long speech or recap.",
+    "Follow the existing player's narrative viewpoint. Use *asterisks* for actions, double quotes for spoken dialogue, and (parentheses) for private thoughts.",
+    "Never start with the persona name on its own line or with a speaker heading. Output the turn text only.",
+    "Close every action *, quotation mark and thought parenthesis. End on a complete sentence, not a dangling thought.",
+    "Target about "+PERSONA_TURN_LENGTH.targetWords+" words, never exceed "+PERSONA_TURN_LENGTH.maxWords+" words.",
+
     "[END REPLY STYLE]",
   ].join("\n") : [
     "[REPLY STYLE]",
@@ -224,7 +229,7 @@ export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_
   // Voice examples are included only when budget allows, before final style
   // guidance. This copies original NPC dialogue without altering the V2 card.
   const voiceTail=voiceBlock ? "\n"+voiceBlock : "";
-  const end="\n[END TRANSCRIPT]"+(personaTurn ? "" : voiceTail)+"\n"+replyStyle+(personaTurn ? "\nPLAYER:" : "\nNARRATOR:");
+  const end="\n[END TRANSCRIPT]"+(personaTurn ? "" : voiceTail)+"\n"+replyStyle+(personaTurn ? "\nPLAYER:\n" : "\nNARRATOR:");
   // Reserve 40% of the entire prompt for dialogue before fitting verbose cards.
   // Keep this proportional for deliberately small test/story budgets.
   const reservedHistory=Math.max(850,Math.min(8500,Math.floor(maxChars*.40)));

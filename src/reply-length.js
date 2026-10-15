@@ -3,6 +3,8 @@
  * request ceiling and the visible setting always describe the same behavior.
  */
 export const DEFAULT_REPLY_LENGTH="normal";
+// Persona AI is a single player decision, not another narrator-sized monologue.
+export const PERSONA_TURN_LENGTH=Object.freeze({targetWords:55,maxWords:95,maxTokens:320});
 export const REPLY_LENGTHS=Object.freeze({
   short:Object.freeze({label:"Short",targetWords:55,maxWords:80,maxTokens:240}),
   normal:Object.freeze({label:"Normal",targetWords:100,maxWords:135,maxTokens:384}),
