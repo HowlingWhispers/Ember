@@ -2,6 +2,7 @@
 // All imported character/card/lore content is untrusted fiction reference data.
 import { activateLorebooks } from "./lore-engine.js";
 import {DEFAULT_REPLY_LENGTH,replyLength,PERSONA_TURN_LENGTH} from "./reply-length.js";
+import {personaTurnGuidance} from "./persona-options.js";
 
 export const EMBER_CONTEXT_LIMIT = 22000;
 const own = (v,k) => Object.prototype.hasOwnProperty.call(v,k);
@@ -150,7 +151,7 @@ function fitReference(name,fields,allowance) {
   throw new Error("The V2 character or persona needs more space than Ember's context budget permits.");
 }
 
-export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_CONTEXT_LIMIT,maxLoreTokens=3200,generationLength=DEFAULT_REPLY_LENGTH,task="narration"}={}) {
+export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_CONTEXT_LIMIT,maxLoreTokens=3200,generationLength=DEFAULT_REPLY_LENGTH,task="narration",personaOptions={},personaRegeneration={}}={}) {
   if(!["narration","persona"].includes(task)) throw new Error("Unknown Ember generation task.");
   const personaTurn=task==="persona";
   if (!story || typeof story !== "object" || !Array.isArray(story.turns)
@@ -215,7 +216,7 @@ export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_
     "Never start with the persona name on its own line or with a speaker heading. Output the turn text only.",
     "Close every action *, quotation mark and thought parenthesis. End on a complete sentence, not a dangling thought.",
     "Target about "+PERSONA_TURN_LENGTH.targetWords+" words, never exceed "+PERSONA_TURN_LENGTH.maxWords+" words.",
-
+    personaTurnGuidance(personaOptions,personaRegeneration),
     "[END REPLY STYLE]",
   ].join("\n") : [
     "[REPLY STYLE]",
