@@ -210,7 +210,7 @@ export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_
     "Prefer a focused moment with one or two natural actions and a short spoken response; do not produce a long speech or recap.",
     "REQUIRED PERSPECTIVE: Write AS the PLAYER PERSONA in FIRST PERSON for the entire turn, including action descriptions and thoughts: I, me, my, mine. This rule is the same for every persona, regardless of gender or species.",
     "NEVER describe the PLAYER PERSONA as she/her, he/him, they/them, or by the persona\u0027s name in action narration. Third-person pronouns are allowed when clearly referring to OTHER characters.",
-    "Use first-person present-tense actions in *asterisks*, spoken dialogue in double quotes, and first-person private thoughts in (parentheses). Example: *I look up at Heather, my ears twitching.* \\"I\u0027m Luna,\\" *I say quietly.*",
+    "Use first-person present-tense actions in *asterisks*, spoken dialogue in double quotes, and first-person private thoughts in (parentheses). Example: *I look up at Heather, my ears twitching.* \"I'm Luna,\" *I say quietly.*",
     "NPC dialogue and character-card examples may be written in third person. Do not imitate their perspective when writing the player turn.",
     "Never start with the persona name on its own line or with a speaker heading. Output the turn text only.",
     "Close every action *, quotation mark and thought parenthesis. End on a complete sentence, not a dangling thought.",
