@@ -565,6 +565,7 @@ function savePersonaOptions() {
     avoidRepeats:$("#personaAvoidRepeats").checked,
   });
   setPreference("personaTurnOptions",JSON.stringify(personaOptions));
+  return personaOptions;
 }
 for(const id of ["personaFlavor","personaDecision","personaCreativity","personaDirection","personaAvoidRepeats"])
   $("#"+id).addEventListener("change",savePersonaOptions);
@@ -587,7 +588,8 @@ async function generatePersonaDraft(mode="fresh") {
     ? {...personaPreview,text:$("#personaDraft").value} : null;
   if(mode!=="fresh" && !previous)return;
   const suggestion=$("#personaSuggestion").value.trim().slice(0,1000);
-  const options=normalizePersonaOptions(personaOptions);
+  // Snapshot the live settings when Generate/Rewrite/Different is clicked.
+  const options=savePersonaOptions();
   const effectiveFlavor=resolvePersonaFlavor(options.flavor,personaLastFlavor);
   const candidates=mode==="different" && options.avoidRepeats && previous
     ? rememberRejectedDrafts(personaRejected,previous.text)
@@ -631,7 +633,9 @@ async function generatePersonaDraft(mode="fresh") {
     const flavorLabel=PERSONA_FLAVORS.find(x=>x.value===effectiveFlavor)?.label||"Natural";
     $("#personaDraftNotice").textContent=(result.shortened===true
       ? "Draft stopped at a complete point. Review before accepting. "
-      : "Review or edit before sending. ")+ "Flavor: "+flavorLabel+".";
+      : "Review or edit before sending. ")+ "Sent: "+flavorLabel+" · "+options.decision+" decision · "+options.direction
+      +" direction · "+options.creativity+" creativity"
+      +(suggestion?" · suggestion included.":".");
   }catch(err){
     if(token===personaRequestToken && $("#personaDialog").open){
       if(previous && personaSceneCurrent(previous)){
