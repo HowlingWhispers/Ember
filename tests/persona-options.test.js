@@ -108,13 +108,23 @@ test("suggestions guide fresh and regenerated persona turns without leaking into
   for(const mode of ["fresh","rewrite","different"]){
     const compiled=compileEmberContext({...base,task:"persona",
       personaRegeneration:{mode,suggestion,previousDraft:"I wait."}});
-    assert.match(compiled.prompt,/PLAYER SUGGESTION FOR THIS TURN: FICTION REFERENCE DATA/);
+    assert.match(compiled.prompt,/PLAYER INTENT FOR THIS TURN/);
+    assert.doesNotMatch(compiled.prompt,/PLAYER SUGGESTION FOR THIS TURN: FICTION REFERENCE DATA/);
+    assert.match(compiled.prompt,/explicit instruction for THIS generation/);
     assert.ok(compiled.prompt.includes(suggestion));
-    assert.match(compiled.prompt,/applies only to this proposed turn/);
+    assert.match(compiled.prompt,/must visibly carry out its requested player action/);
   }
   assert.doesNotMatch(personaTurnGuidance({}, {suggestion:"  "}),/PLAYER SUGGESTION/);
   assert.doesNotMatch(personaTurnGuidance({}, {suggestion:{}}),/PLAYER SUGGESTION/);
   assert.ok(!personaTurnGuidance({}, {suggestion:"x".repeat(1100)}).includes("x".repeat(1001)));
+  const intent=personaTurnGuidance({flavor:"brave",direction:"confront",decision:"bold"},
+    {mode:"different",suggestion:"Stay silent instead of answering Heather.",rejectedDrafts:['"Yes, Heather."']});
+  assert.match(intent,/prioritize the CURRENT suggestion/);
+  assert.match(intent,/settings are ACTIVE requirements/);
+  assert.match(intent,/within any explicit player suggestion/);
+  assert.ok(intent.indexOf("Turn direction: confront")<intent.indexOf("[PLAYER INTENT FOR THIS TURN]"));
+  assert.match(intent,/  Stay silent instead of answering Heather\./);
+  assert.match(intent,/\[END PLAYER INTENT FOR THIS TURN\]/);
   const story={...scene,turns:[{source:"player",mode:"action",text:"I wait."}]};
   assert.equal(compileEmberContext({...base,story}).prompt,
     compileEmberContext({...base,story,personaRegeneration:{suggestion}}).prompt);
