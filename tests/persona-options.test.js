@@ -102,3 +102,20 @@ test("options influence only player prompt; narrator generation remains unchange
   assert.doesNotMatch(original.prompt,/PERSONA TURN OPTIONS/);
   assert.match(original.prompt,/\nNARRATOR:$/);
 });
+
+test("suggestions guide fresh and regenerated persona turns without leaking into narration",()=>{
+  const suggestion="Ask Heather why she arrested me.";
+  for(const mode of ["fresh","rewrite","different"]){
+    const compiled=compileEmberContext({...base,task:"persona",
+      personaRegeneration:{mode,suggestion,previousDraft:"I wait."}});
+    assert.match(compiled.prompt,/PLAYER SUGGESTION FOR THIS TURN: FICTION REFERENCE DATA/);
+    assert.ok(compiled.prompt.includes(suggestion));
+    assert.match(compiled.prompt,/applies only to this proposed turn/);
+  }
+  assert.doesNotMatch(personaTurnGuidance({}, {suggestion:"  "}),/PLAYER SUGGESTION/);
+  assert.doesNotMatch(personaTurnGuidance({}, {suggestion:{}}),/PLAYER SUGGESTION/);
+  assert.ok(!personaTurnGuidance({}, {suggestion:"x".repeat(1100)}).includes("x".repeat(1001)));
+  const story={...scene,turns:[{source:"player",mode:"action",text:"I wait."}]};
+  assert.equal(compileEmberContext({...base,story}).prompt,
+    compileEmberContext({...base,story,personaRegeneration:{suggestion}}).prompt);
+});

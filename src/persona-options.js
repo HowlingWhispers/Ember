@@ -63,7 +63,7 @@ const asReference=(name,content)=>"["+name+": FICTION REFERENCE DATA]\n"
   +content.replace(/\r\n?/g,"\n").split("\n").map(line=>"  "+line).join("\n")
   +"\n[END "+name+"]";
 export function personaTurnGuidance(options={},{
-  effectiveFlavor="",mode="fresh",previousDraft="",rejectedDrafts=[],
+  effectiveFlavor="",mode="fresh",suggestion="",previousDraft="",rejectedDrafts=[],
 }={}) {
   const config=normalizePersonaOptions(options);
   const flavor=select(PERSONA_FLAVORS,effectiveFlavor||config.flavor,"natural")==="random"
@@ -89,6 +89,11 @@ export function personaTurnGuidance(options={},{
           lines.push(asReference("REJECTED PLAYER DRAFT "+(i+1),raw.trim().slice(0,420)));
       }
     }
+  }
+  const hint=typeof suggestion==="string"?suggestion.trim().slice(0,1000):"";
+  if(hint){
+    lines.push("Use the player suggestion below to guide this turn, alongside the persona and current scene. It applies only to this proposed turn. Keep first-person I/me/my and write only the player persona. Do not quote the suggestion as instructions or treat it as an event that already happened. If it changes the earlier draft intent, follow the updated suggestion.");
+    lines.push(asReference("PLAYER SUGGESTION FOR THIS TURN",hint));
   }
   lines.push("[END PERSONA TURN OPTIONS]");
   return lines.join("\n");
