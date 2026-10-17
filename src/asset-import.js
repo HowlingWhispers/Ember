@@ -122,6 +122,28 @@ function normalizeBook(source, entries, format) {
     entries: entries.map((e, i) => normalizedEntry(e, i, format === "character_book_v2" ? "v2" : "standalone")),
   };
 }
+// V2 greetings are plain strings; producers may supply scene titles in extensions.
+// Resolve them from the original card so already-imported IndexedDB assets benefit
+// without a destructive re-import or any edits to the character's source JSON.
+export function greetingLabelsFromCard(card, openings) {
+  const data = record(card?.data) ? card.data : {};
+  const extensions = record(data.extensions) ? data.extensions : {};
+  const scenes = Array.isArray(extensions.scenes) ? extensions.scenes.slice(0, 100).filter(record) : [];
+  const selection = record(extensions.scene_selection) ? extensions.scene_selection : {};
+  const mapping = Array.isArray(selection.alternate_greeting_mapping)
+    ? selection.alternate_greeting_mapping.filter(record) : [];
+  const explicit = Array.isArray(extensions.greeting_labels) ? extensions.greeting_labels : [];
+  return openings.map((opening, index) => {
+    const fallback = index === 0 ? "Primary greeting" : "Alternate greeting " + index;
+    const sceneId = index === 0 ? selection.default
+      : mapping.find(item => item.greeting_index === index - 1)?.scene_id;
+    const scene = scenes.find(item => typeof sceneId === "string" && item.id === sceneId)
+      ?? scenes.find(item => typeof item.opening === "string" && item.opening === opening);
+    // Explicit labels are preferred when available (e.g. after a card is edited).
+    const label = text(explicit[index]).trim() || text(scene?.title).trim();
+    return label ? label.slice(0, 120) : fallback;
+  });
+}
 export function parseV2Card(value) {
   const card = readObject(value);
   assert(card.spec === "chara_card_v2" && card.spec_version === "2.0", "Not a Character Card V2 (version 2.0).");
