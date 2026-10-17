@@ -108,8 +108,6 @@ root.innerHTML = `
               
             </div>
           </div>
-          <label for="personaSuggestion" class="setting-label">Suggestion for this turn (optional)</label>
-          <textarea id="personaSuggestion" rows="2" maxlength="1000" placeholder="For example: Ask Heather why she arrested me."></textarea>
           <div class="composer">
             <div class="mode-switch" id="modeSwitch" aria-label="Insert roleplay formatting">
               <button type="button" data-format="action">*Action*</button>
@@ -218,14 +216,15 @@ root.innerHTML = `
         </div>
         <label class="persona-repeat-label"><input type="checkbox" id="personaAvoidRepeats"> Avoid repeating rejected turns</label>
       </details>
-      <label for="personaSuggestionReview" class="setting-label">Suggestion for this turn (optional)</label>
-      <textarea id="personaSuggestionReview" rows="2" maxlength="1000" placeholder="Guide your next action, speech or thoughts."></textarea>
+      <label for="personaSuggestion" class="setting-label">Suggestion for this turn (optional)</label>
+      <textarea id="personaSuggestion" rows="2" maxlength="1000" placeholder="Guide your next action, speech or thoughts."></textarea>
       <label for="personaDraft" class="setting-label">Review or edit the proposed turn</label>
       <textarea id="personaDraft" rows="7" maxlength="${MAX_INPUT}" placeholder="Your persona's proposed action, speech or thoughts"></textarea>
       <p id="personaDraftNotice" role="status" aria-live="polite"></p>
       <p id="personaDraftError" role="alert" aria-live="polite"></p>
       <div class="sheet-foot">
         <button type="button" id="personaCancel" class="quiet">Cancel</button>
+        <button type="button" id="personaGenerate" class="chip-button">Generate turn</button>
         <button type="button" id="personaRegenerate" class="chip-button" title="Keep the decision but rewrite its words">↻ Rewrite</button>
         <button type="button" id="personaDifferent" class="chip-button" title="Make a materially different choice">⤨ Different approach</button>
         <button type="button" id="personaAccept" class="primary">Accept &amp; send</button>
@@ -391,7 +390,6 @@ function setStory(next) {
   persistStory(next);
   if(next.id!==state?.id || next.revision!==state?.revision){
     $("#personaSuggestion").value="";
-    $("#personaSuggestionReview").value="";
   }
   if (next.id !== state?.id) {
     codaDiscovery = loadDiscovery(liveSession?.userId, next.id);
@@ -425,7 +423,7 @@ function renderNarrationState() {
   $("#personaDifferent").disabled = narrationBusy || personaBusy || !previewCurrent;
   $("#personaDraft").disabled = narrationBusy || personaBusy;
   $("#personaSuggestion").disabled = narrationBusy || personaBusy;
-  $("#personaSuggestionReview").disabled = narrationBusy || personaBusy;
+  $("#personaGenerate").disabled = !isGuest || !!personaBlocker || narrationBusy || personaBusy;
   $("#composeHint").textContent = !live
     ? "Offline preview: saves your words but cannot generate narration."
     : narrationBusy ? "NovelAI is writing the next moment…"
@@ -589,7 +587,6 @@ async function generatePersonaDraft(mode="fresh") {
     ? {...personaPreview,text:$("#personaDraft").value} : null;
   if(mode!=="fresh" && !previous)return;
   const suggestion=$("#personaSuggestion").value.trim().slice(0,1000);
-  $("#personaSuggestionReview").value=suggestion;
   const options=normalizePersonaOptions(personaOptions);
   const effectiveFlavor=resolvePersonaFlavor(options.flavor,personaLastFlavor);
   const candidates=mode==="different" && options.avoidRepeats && previous
@@ -649,9 +646,23 @@ async function generatePersonaDraft(mode="fresh") {
     renderNarrationState();
   }
 }
-for(const [source,target] of [["personaSuggestion","personaSuggestionReview"],["personaSuggestionReview","personaSuggestion"]])
-  $("#"+source).addEventListener("input",()=>{$("#"+target).value=$("#"+source).value;});
-$("#personaAIButton").addEventListener("click",()=>void generatePersonaDraft());
+function openPersonaTurn() {
+  if(!isGuest || !state || personaBusy || narrationBusy)return;
+  const blocker=personaTurnBlocker(state);
+  if(blocker){toast(blocker);return;}
+  if($("#playerInput").value.trim()){
+    toast("Send or clear your own unsent draft before asking Persona AI.");
+    return;
+  }
+  personaPreview=null;
+  $("#personaDraft").value="";
+  $("#personaDraftError").textContent="";
+  $("#personaDraftNotice").textContent="Choose your options, add an optional suggestion, then click Generate turn.";
+  openDialog("#personaDialog");
+  renderNarrationState();
+}
+$("#personaAIButton").addEventListener("click",openPersonaTurn);
+$("#personaGenerate").addEventListener("click",()=>void generatePersonaDraft());
 $("#personaRegenerate").addEventListener("click",()=>void generatePersonaDraft("rewrite"));
 $("#personaDifferent").addEventListener("click",()=>void generatePersonaDraft("different"));
 $("#personaDraft").addEventListener("input",renderNarrationState);
