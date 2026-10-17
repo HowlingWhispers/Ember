@@ -205,7 +205,7 @@ export function compileEmberContext({story,assets=[],bindings=[],maxChars=EMBER_
   const replyStyle=personaTurn ? [
     "[REPLY STYLE]",
     "Write ONE proposed PLAYER turn, as the selected PLAYER PERSONA V2. Do not act as narrator or NPC.",
-    "React directly to the MOST RECENT NARRATOR turn first. If an NPC asked a question, answer that question in character.",
+    "React to the MOST RECENT NARRATOR turn. If an NPC asks a question, decide how to respond in character, unless the player's explicit suggestion calls for a particular reply or silence.",
     "Read the previous PLAYER turn: do not repeat explanations, introductions, information or actions already given unless the latest NPC explicitly requests them.",
     "Make an independent, character-driven choice. You may improvise the persona\u0027s emotions, dialogue, motivations and backstory details as long as you do not contradict established story events.",
     "Stay in the immediate scene. React to NPCs but never write their dialogue, choices, feelings, reactions or consequences.",
