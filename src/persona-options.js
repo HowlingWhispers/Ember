@@ -62,6 +62,11 @@ const description=(collection,value)=>collection.find(item=>item.value===value)?
 const asReference=(name,content)=>"["+name+": FICTION REFERENCE DATA]\n"
   +content.replace(/\r\n?/g,"\n").split("\n").map(line=>"  "+line).join("\n")
   +"\n[END "+name+"]";
+// A player's live suggestion is an instruction, NOT a fictional card or story excerpt.
+// Keep it visually bounded and indented without mislabelling it as reference data.
+const asPlayerIntent=content=>"[PLAYER INTENT FOR THIS TURN]\n"
+  +content.replace(/\r\n?/g,"\n").split("\n").map(line=>"  "+line).join("\n")
+  +"\n[END PLAYER INTENT FOR THIS TURN]";
 export function personaTurnGuidance(options={},{
   effectiveFlavor="",mode="fresh",suggestion="",previousDraft="",rejectedDrafts=[],
 }={}) {
@@ -74,13 +79,15 @@ export function personaTurnGuidance(options={},{
     "Creativity: "+config.creativity+". "+description(PERSONA_CREATIVITY,config.creativity),
     "Turn direction: "+config.direction+". "+description(PERSONA_DIRECTIONS,config.direction),
     "Turn flavor: "+flavor+". "+description(PERSONA_FLAVORS,flavor),
+    "These selected settings are ACTIVE requirements for the proposed turn, not background trivia. Show the chosen direction in the decision, the flavor in behavior/voice, and the decision style in how the persona acts.",
+    "Instruction priority: preserve established scene facts and first-person player-only perspective; then obey the player's explicit suggestion; then apply direction, decision style and flavor without contradicting that suggestion. Creativity controls novelty, not whether to obey instructions.",
     "Flavor is a temporary mood, NOT a permanent personality change. Keep the persona's identity and first-person I/me/my viewpoint.",
   ];
   if(mode==="rewrite" && typeof previousDraft==="string" && previousDraft.trim()){
     lines.push("REWRITE MODE: Keep the central decision and intent of the prior draft, but change its wording, pacing and gestures. Do not simply copy the same text.");
     lines.push(asReference("EARLIER PLAYER DRAFT TO REWRITE",previousDraft.trim().slice(0,500)));
   } else if(mode==="different"){
-    lines.push("DIFFERENT APPROACH MODE: Make a materially different PLAYER decision or reaction. Do NOT merely paraphrase the previous reply. Choose a new action, question, boundary, intention or emotional response.");
+    lines.push("DIFFERENT APPROACH MODE: Make a materially different PLAYER decision or reaction. Do NOT merely paraphrase the previous reply. Choose a new action, question, boundary, intention or emotional response within any explicit player suggestion.");
     if(config.avoidRepeats && Array.isArray(rejectedDrafts)){
       const recent=rejectedDrafts.filter(x=>typeof x==="string" && x.trim()).slice(-4);
       if(recent.length){
@@ -92,8 +99,10 @@ export function personaTurnGuidance(options={},{
   }
   const hint=typeof suggestion==="string"?suggestion.trim().slice(0,1000):"";
   if(hint){
-    lines.push("Use the player suggestion below to guide this turn, alongside the persona and current scene. It applies only to this proposed turn. Keep first-person I/me/my and write only the player persona. Do not quote the suggestion as instructions or treat it as an event that already happened. If it changes the earlier draft intent, follow the updated suggestion.");
-    lines.push(asReference("PLAYER SUGGESTION FOR THIS TURN",hint));
+    lines.push("PLAYER'S CURRENT REQUEST: Treat the following suggestion as the player's explicit instruction for THIS generation, not as fictional reference data, an event already completed, or merely optional inspiration. The draft must visibly carry out its requested player action, spoken response, or emotional reaction, unless this would contradict established scene facts or player-only first-person perspective.");
+    lines.push("If the suggestion conflicts with a preset direction, flavor, decision style, rejected draft, or an earlier draft, prioritize the CURRENT suggestion. Do not mechanically quote it or invent NPC reactions.");
+    lines.push(asPlayerIntent(hint));
+    lines.push("Before returning the turn, check that the actual proposed words/actions reflect the player's request and all compatible selected settings. If not, revise the draft internally.");
   }
   lines.push("[END PERSONA TURN OPTIONS]");
   return lines.join("\n");
