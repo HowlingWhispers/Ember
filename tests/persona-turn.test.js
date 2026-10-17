@@ -125,7 +125,8 @@ test("persona turn reacts to last Heather question and earlier Luna explanation 
   ]};
   const p=compileEmberContext({story,assets:[persona,npc],bindings,task:"persona"}).prompt;
   assert.ok(p.indexOf("Those boys kept hogging")<p.indexOf("What’s your name"));
-  assert.match(p,/React directly to the MOST RECENT NARRATOR turn first/);
+  assert.match(p,/React to the MOST RECENT NARRATOR turn/);
+  assert.match(p,/player's explicit suggestion calls for a particular reply or silence/);
   assert.match(p,/do not repeat explanations, introductions/);
   assert.match(p,/Never start with the persona name on its own line/);
 });
