@@ -1,4 +1,4 @@
-import { importEmberAsset, IMPORT_LIMITS } from "./asset-import.js";
+import { importEmberAsset, IMPORT_LIMITS, greetingLabelsFromCard } from "./asset-import.js";
 import { listLocalAssets, importLocalAsset, renameLocalAsset, deleteLocalAsset,
   downloadLocalAsset, getStoryAssets, setStoryAssets } from "./asset-store.js";
 import { activateLorebooks } from "./lore-engine.js";
@@ -58,10 +58,11 @@ export function mountAssetLibrary({root,owner,getStory,onStartCharacter,onSelect
     if (asset.kind === "character") {
       const c=asset.fields;
       const openings = [c.firstMessage,...c.alternateGreetings];
+      const greetingLabels = greetingLabelsFromCard(asset.original, openings);
       const chosen = Math.min(link?.greeting||0,Math.max(0,openings.length-1));
       const selector = type==="persona"
         ? '<p class="asset-muted">Player-controlled V2 identity. Ember uses this card to describe you, not to speak or decide for you. Its greeting is not used as your opening.</p>'
-        : '<label class="asset-field">Opening message<select id="assetGreeting">'+openings.map((_,i)=>'<option value="'+i+'" '+(i===chosen?'selected':'')+'>'+(i===0?'Primary greeting':'Alternate greeting '+i)+'</option>').join("")+'</select></label>';
+        : '<label class="asset-field">Opening message<select id="assetGreeting">'+openings.map((_,i)=>'<option value="'+i+'" '+(i===chosen?'selected':'')+'>'+escapeHtml(greetingLabels[i])+'</option>').join("")+'</select></label>';
       $("#assetDetail").innerHTML = header + attach + selector
         +'<div class="asset-content">'+(type==="persona"?"":'<h4>Opening preview</h4><p class="asset-prose">'+escapeHtml(openings[chosen]||"No opening defined. Start freely.")+'</p>')
         +'<h4>Description</h4><p class="asset-prose">'+escapeHtml(c.description||"Not specified")+'</p>'
