@@ -1,7 +1,7 @@
 import test from "node:test";
 import { deflateSync } from "node:zlib";
 import assert from "node:assert/strict";
-import { importEmberAsset, parseV2Card, parseStandaloneLorebook } from "../src/asset-import.js";
+import { importEmberAsset, parseV2Card, parseStandaloneLorebook, greetingLabelsFromCard } from "../src/asset-import.js";
 import { activateLorebooks, checkLoreEntry } from "../src/lore-engine.js";
 import { exportLocalLibrary,parseLocalLibraryBackup } from "../src/asset-backup.js";
 
@@ -31,6 +31,32 @@ test("imports Character Card V2 JSON without losing the original",()=>{
  assert.equal(parsed.fields.characterBook.entries[0].content,"Pack lore");
  assert.equal(parsed.original.data.extensions.test_unknown.keep_me,true);
  assert.deepEqual(parsed.sourceBytes,bytes(v2));
+});
+test("displays named V2 scenes from original metadata, including existing library cards",()=>{
+ const card={...v2,data:{...v2.data,extensions:{
+   scenes:[
+     {id:"lime-green-fortress",title:"The Lime-Green Fortress",opening:"Forest encounter"},
+     {id:"you-finally-showed-up",title:"You Finally Showed Up",opening:"Ranger station"},
+   ],
+   scene_selection:{default:"lime-green-fortress",
+     alternate_greeting_mapping:[{greeting_index:0,scene_id:"you-finally-showed-up"}]},
+ }}};
+ const imported=importEmberAsset(bytes(card),"Senako.json");
+ const greetings=[imported.fields.firstMessage,...imported.fields.alternateGreetings];
+ assert.deepEqual(greetingLabelsFromCard(imported.original,greetings),[
+   "The Lime-Green Fortress","You Finally Showed Up","Alternate greeting 2",
+ ]);
+ // Already imported assets retain their original data and need no re-import.
+ assert.equal(imported.fields.greetingLabels,undefined);
+ assert.deepEqual(greetingLabelsFromCard(v2,[v2.data.first_mes,...v2.data.alternate_greetings]),[
+   "Primary greeting","Alternate greeting 1","Alternate greeting 2",
+ ]);
+ const custom={...card,data:{...card.data,extensions:{
+   ...card.data.extensions,greeting_labels:["Named opening","Named alternative"],
+ }}};
+ assert.deepEqual(greetingLabelsFromCard(custom,greetings),[
+   "Named opening","Named alternative","Alternate greeting 2",
+ ]);
 });
 test("imports object-keyed standalone lorebook independently of V2",()=>{
  const parsed=importEmberAsset(bytes(standalone),"The Dogs of Another World.json");
